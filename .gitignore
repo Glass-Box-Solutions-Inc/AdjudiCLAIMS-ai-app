@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.react-router/
+
+.env
+.env.*
+!.env.example
+
+prisma/*.db
+
+coverage/
+.cache/
+*.tsbuildinfo
+
+.DS_Store
+*.log

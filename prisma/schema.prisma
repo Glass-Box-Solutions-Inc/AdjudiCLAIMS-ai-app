@@ -1,0 +1,574 @@
+// =============================================================================
+// AdjudiCLAIMS Prisma Schema
+// =============================================================================
+// CA Workers' Compensation claims management AI platform.
+// Phase 2A standalone deployment — no shared claims with attorney product.
+//
+// Database: PostgreSQL 15 + pgvector
+// ORM: Prisma 6
+// Multi-tenancy: Organization-scoped (CARRIER, TPA, SELF_INSURED)
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+enum OrganizationType {
+  CARRIER
+  TPA
+  SELF_INSURED
+
+  @@map("organization_type")
+}
+
+enum UserRole {
+  CLAIMS_ADMIN
+  CLAIMS_SUPERVISOR
+  CLAIMS_EXAMINER
+
+  @@map("user_role")
+}
+
+enum ClaimStatus {
+  OPEN
+  UNDER_INVESTIGATION
+  ACCEPTED
+  DENIED
+  CLOSED
+  REOPENED
+
+  @@map("claim_status")
+}
+
+enum DocumentType {
+  DWC1_CLAIM_FORM
+  MEDICAL_REPORT
+  BILLING_STATEMENT
+  LEGAL_CORRESPONDENCE
+  EMPLOYER_REPORT
+  INVESTIGATION_REPORT
+  UTILIZATION_REVIEW
+  AME_QME_REPORT
+  DEPOSITION_TRANSCRIPT
+  IMAGING_REPORT
+  PHARMACY_RECORD
+  WAGE_STATEMENT
+  BENEFIT_NOTICE
+  SETTLEMENT_DOCUMENT
+  CORRESPONDENCE
+  OTHER
+
+  @@map("document_type")
+}
+
+enum AccessLevel {
+  SHARED
+  ATTORNEY_ONLY
+  EXAMINER_ONLY
+
+  @@map("access_level")
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETE
+  FAILED
+
+  @@map("ocr_status")
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+
+  @@map("chat_role")
+}
+
+enum UplZone {
+  GREEN
+  YELLOW
+  RED
+
+  @@map("upl_zone")
+}
+
+enum DeadlineType {
+  ACKNOWLEDGE_15DAY
+  DETERMINE_40DAY
+  TD_FIRST_14DAY
+  TD_SUBSEQUENT_14DAY
+  DELAY_NOTICE_30DAY
+  UR_PROSPECTIVE_5DAY
+  UR_RETROSPECTIVE_30DAY
+  EMPLOYER_NOTIFY_15DAY
+
+  @@map("deadline_type")
+}
+
+enum DeadlineStatus {
+  PENDING
+  MET
+  MISSED
+  WAIVED
+
+  @@map("deadline_status")
+}
+
+enum InvestigationItemType {
+  THREE_POINT_CONTACT_WORKER
+  THREE_POINT_CONTACT_EMPLOYER
+  THREE_POINT_CONTACT_PROVIDER
+  RECORDED_STATEMENT
+  EMPLOYER_REPORT
+  MEDICAL_RECORDS
+  DWC1_ON_FILE
+  INDEX_BUREAU_CHECK
+  AWE_VERIFIED
+  INITIAL_RESERVES_SET
+
+  @@map("investigation_item_type")
+}
+
+enum PaymentType {
+  TD
+  PD
+  DEATH_BENEFIT
+  SJDB_VOUCHER
+
+  @@map("payment_type")
+}
+
+enum AuditEventType {
+  DOCUMENT_UPLOADED
+  DOCUMENT_CLASSIFIED
+  DOCUMENT_VIEWED
+  CLAIM_CREATED
+  CLAIM_STATUS_CHANGED
+  COVERAGE_DETERMINATION
+  RESERVE_CHANGED
+  BENEFIT_CALCULATED
+  BENEFIT_PAYMENT_ISSUED
+  DEADLINE_CREATED
+  DEADLINE_MET
+  DEADLINE_MISSED
+  CHAT_MESSAGE_SENT
+  CHAT_RESPONSE_GENERATED
+  UPL_ZONE_CLASSIFICATION
+  UPL_OUTPUT_BLOCKED
+  UPL_DISCLAIMER_INJECTED
+  UPL_OUTPUT_VALIDATION_FAIL
+  COUNSEL_REFERRAL_GENERATED
+  UR_DECISION
+  INVESTIGATION_ACTIVITY
+  TRAINING_MODULE_COMPLETED
+  TRAINING_ASSESSMENT_PASSED
+  TIER1_TERM_DISMISSED
+  USER_LOGIN
+  USER_LOGOUT
+  PERMISSION_DENIED
+
+  @@map("audit_event_type")
+}
+
+// =============================================================================
+// Models
+// =============================================================================
+
+/// Insurance carrier, TPA, or self-insured employer tenant.
+model Organization {
+  id   String           @id @default(cuid()) @map("id")
+  name String           @map("name")
+  type OrganizationType @map("type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users  User[]
+  claims Claim[]
+
+  @@map("organizations")
+}
+
+/// Claims professional — examiner, supervisor, or admin.
+model User {
+  id             String   @id @default(cuid()) @map("id")
+  email          String   @unique @map("email")
+  name           String   @map("name")
+  organizationId String   @map("organization_id")
+  role           UserRole @map("role")
+  isActive       Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  assignedClaims   Claim[]           @relation("AssignedExaminer")
+  chatSessions     ChatSession[]
+  auditEvents      AuditEvent[]
+  educationProfile EducationProfile?
+
+  // Investigation items completed by this user
+  completedInvestigationItems InvestigationItem[] @relation("CompletedBy")
+
+  @@index([organizationId], map: "idx_users_organization_id")
+  @@index([email], map: "idx_users_email")
+  @@index([role], map: "idx_users_role")
+  @@map("users")
+}
+
+/// Workers' compensation claim file.
+model Claim {
+  id                 String @id @default(cuid()) @map("id")
+  claimNumber        String @unique @map("claim_number")
+  organizationId     String @map("organization_id")
+  assignedExaminerId String @map("assigned_examiner_id")
+
+  // Claimant information
+  claimantName String   @map("claimant_name")
+  dateOfInjury DateTime @map("date_of_injury") @db.Date
+  bodyParts    String[] @map("body_parts")
+  employer     String   @map("employer")
+  insurer      String   @map("insurer")
+
+  // Claim status
+  status ClaimStatus @default(OPEN) @map("status")
+
+  // Financial — reserves and payments (stored as cents to avoid floating point)
+  currentReserveIndemnity Decimal @default(0) @map("current_reserve_indemnity") @db.Decimal(12, 2)
+  currentReserveMedical   Decimal @default(0) @map("current_reserve_medical") @db.Decimal(12, 2)
+  currentReserveLegal     Decimal @default(0) @map("current_reserve_legal") @db.Decimal(12, 2)
+  currentReserveLien      Decimal @default(0) @map("current_reserve_lien") @db.Decimal(12, 2)
+  totalPaidIndemnity      Decimal @default(0) @map("total_paid_indemnity") @db.Decimal(12, 2)
+  totalPaidMedical        Decimal @default(0) @map("total_paid_medical") @db.Decimal(12, 2)
+
+  // Key dates
+  dateReceived     DateTime  @map("date_received")
+  dateAcknowledged DateTime? @map("date_acknowledged")
+  dateDetermined   DateTime? @map("date_determined")
+  dateClosed       DateTime? @map("date_closed")
+
+  // Flags
+  isLitigated          Boolean @default(false) @map("is_litigated")
+  hasApplicantAttorney Boolean @default(false) @map("has_applicant_attorney")
+  isCumulativeTrauma   Boolean @default(false) @map("is_cumulative_trauma")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization       Organization         @relation(fields: [organizationId], references: [id])
+  assignedExaminer   User                 @relation("AssignedExaminer", fields: [assignedExaminerId], references: [id])
+  documents          Document[]
+  chatSessions       ChatSession[]
+  deadlines          RegulatoryDeadline[]
+  investigationItems InvestigationItem[]
+  auditEvents        AuditEvent[]
+  benefitPayments    BenefitPayment[]
+  timelineEvents     TimelineEvent[]
+
+  @@index([organizationId], map: "idx_claims_organization_id")
+  @@index([assignedExaminerId], map: "idx_claims_assigned_examiner_id")
+  @@index([status], map: "idx_claims_status")
+  @@index([claimNumber], map: "idx_claims_claim_number")
+  @@index([dateOfInjury], map: "idx_claims_date_of_injury")
+  @@index([isLitigated], map: "idx_claims_is_litigated")
+  @@index([organizationId, status], map: "idx_claims_org_status")
+  @@index([organizationId, assignedExaminerId], map: "idx_claims_org_examiner")
+  @@map("claims")
+}
+
+/// Uploaded claim document — medical reports, legal correspondence, forms, etc.
+model Document {
+  id       String @id @default(cuid()) @map("id")
+  claimId  String @map("claim_id")
+  fileName String @map("file_name")
+  fileUrl  String @map("file_url")
+  fileSize Int    @map("file_size")
+  mimeType String @map("mime_type")
+
+  // Classification
+  documentType             DocumentType? @map("document_type")
+  documentSubtype          String?       @map("document_subtype")
+  classificationConfidence Float?        @map("classification_confidence")
+
+  // Access control — supports data boundary separation from attorney product
+  accessLevel           AccessLevel @default(EXAMINER_ONLY) @map("access_level")
+  containsLegalAnalysis Boolean     @default(false) @map("contains_legal_analysis")
+  containsWorkProduct   Boolean     @default(false) @map("contains_work_product")
+  containsPrivileged    Boolean     @default(false) @map("contains_privileged")
+
+  // OCR / text extraction processing
+  ocrStatus     OcrStatus @default(PENDING) @map("ocr_status")
+  extractedText String?   @map("extracted_text")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  claim           Claim            @relation(fields: [claimId], references: [id])
+  chunks          DocumentChunk[]
+  extractedFields ExtractedField[]
+  timelineEvents  TimelineEvent[]
+
+  // Investigation items satisfied by this document
+  investigationItems InvestigationItem[] @relation("SatisfiedByDocument")
+
+  @@index([claimId], map: "idx_documents_claim_id")
+  @@index([documentType], map: "idx_documents_document_type")
+  @@index([ocrStatus], map: "idx_documents_ocr_status")
+  @@index([accessLevel], map: "idx_documents_access_level")
+  @@index([claimId, documentType], map: "idx_documents_claim_type")
+  @@map("documents")
+}
+
+/// Vector embedding chunk for RAG retrieval against claim documents.
+model DocumentChunk {
+  id         String @id @default(cuid()) @map("id")
+  documentId String @map("document_id")
+  content    String @map("content")
+  chunkIndex Int    @map("chunk_index")
+
+  /// pgvector embedding — 768 dimensions (matches typical embedding model output).
+  embedding Unsupported("vector(768)")? @map("embedding")
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId], map: "idx_document_chunks_document_id")
+  @@index([documentId, chunkIndex], map: "idx_document_chunks_doc_chunk_idx")
+  @@map("document_chunks")
+}
+
+/// Structured data extracted from documents (key-value pairs with confidence).
+model ExtractedField {
+  id         String @id @default(cuid()) @map("id")
+  documentId String @map("document_id")
+  fieldName  String @map("field_name")
+  fieldValue String @map("field_value")
+  confidence Float  @map("confidence")
+  sourcePage Int?   @map("source_page")
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId], map: "idx_extracted_fields_document_id")
+  @@index([fieldName], map: "idx_extracted_fields_field_name")
+  @@index([documentId, fieldName], map: "idx_extracted_fields_doc_field")
+  @@map("extracted_fields")
+}
+
+/// Auto-generated claim timeline event — built from documents and user actions.
+model TimelineEvent {
+  id          String   @id @default(cuid()) @map("id")
+  claimId     String   @map("claim_id")
+  documentId  String?  @map("document_id")
+  eventDate   DateTime @map("event_date")
+  eventType   String   @map("event_type")
+  description String   @map("description")
+  source      String   @map("source")
+
+  // Relations
+  claim    Claim     @relation(fields: [claimId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([claimId], map: "idx_timeline_events_claim_id")
+  @@index([claimId, eventDate], map: "idx_timeline_events_claim_date")
+  @@index([eventType], map: "idx_timeline_events_event_type")
+  @@map("timeline_events")
+}
+
+/// UPL-filtered chat session scoped to a specific claim.
+model ChatSession {
+  id      String @id @default(cuid()) @map("id")
+  claimId String @map("claim_id")
+  userId  String @map("user_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  claim    Claim         @relation(fields: [claimId], references: [id])
+  user     User          @relation(fields: [userId], references: [id])
+  messages ChatMessage[]
+
+  @@index([claimId], map: "idx_chat_sessions_claim_id")
+  @@index([userId], map: "idx_chat_sessions_user_id")
+  @@index([claimId, userId], map: "idx_chat_sessions_claim_user")
+  @@map("chat_sessions")
+}
+
+/// Individual chat message with UPL zone classification and enforcement flags.
+model ChatMessage {
+  id        String   @id @default(cuid()) @map("id")
+  sessionId String   @map("session_id")
+  role      ChatRole @map("role")
+  content   String   @map("content")
+
+  /// UPL zone classification: GREEN (factual), YELLOW (needs disclaimer), RED (blocked).
+  uplZone           UplZone? @map("upl_zone")
+  wasBlocked        Boolean  @default(false) @map("was_blocked")
+  disclaimerApplied Boolean  @default(false) @map("disclaimer_applied")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId], map: "idx_chat_messages_session_id")
+  @@index([sessionId, createdAt], map: "idx_chat_messages_session_created")
+  @@index([uplZone], map: "idx_chat_messages_upl_zone")
+  @@map("chat_messages")
+}
+
+/// Tracked regulatory deadline per claim — California Workers' Comp statutory requirements.
+model RegulatoryDeadline {
+  id           String         @id @default(cuid()) @map("id")
+  claimId      String         @map("claim_id")
+  deadlineType DeadlineType   @map("deadline_type")
+  dueDate      DateTime       @map("due_date")
+  status       DeadlineStatus @default(PENDING) @map("status")
+
+  /// Statutory authority citation (e.g., "10 CCR 2695.5(b)").
+  statutoryAuthority String @map("statutory_authority")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  // Relations
+  claim Claim @relation(fields: [claimId], references: [id])
+
+  @@index([claimId], map: "idx_regulatory_deadlines_claim_id")
+  @@index([dueDate], map: "idx_regulatory_deadlines_due_date")
+  @@index([status], map: "idx_regulatory_deadlines_status")
+  @@index([claimId, status], map: "idx_regulatory_deadlines_claim_status")
+  @@index([status, dueDate], map: "idx_regulatory_deadlines_status_due")
+  @@map("regulatory_deadlines")
+}
+
+/// Investigation checklist item — three-point contact, recorded statements, etc.
+model InvestigationItem {
+  id            String                @id @default(cuid()) @map("id")
+  claimId       String                @map("claim_id")
+  itemType      InvestigationItemType @map("item_type")
+  isComplete    Boolean               @default(false) @map("is_complete")
+  completedAt   DateTime?             @map("completed_at")
+  completedById String?               @map("completed_by_id")
+
+  /// Optional reference to the document that satisfied this investigation item.
+  documentId String? @map("document_id")
+
+  // Relations
+  claim       Claim     @relation(fields: [claimId], references: [id])
+  completedBy User?     @relation("CompletedBy", fields: [completedById], references: [id])
+  document    Document? @relation("SatisfiedByDocument", fields: [documentId], references: [id])
+
+  @@index([claimId], map: "idx_investigation_items_claim_id")
+  @@index([isComplete], map: "idx_investigation_items_is_complete")
+  @@index([claimId, isComplete], map: "idx_investigation_items_claim_complete")
+  @@map("investigation_items")
+}
+
+/// TD/PD benefit payment tracking with late payment penalty calculation.
+model BenefitPayment {
+  id          String      @id @default(cuid()) @map("id")
+  claimId     String      @map("claim_id")
+  paymentType PaymentType @map("payment_type")
+
+  amount      Decimal  @map("amount") @db.Decimal(10, 2)
+  paymentDate DateTime @map("payment_date") @db.Date
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+
+  /// LC 4650(c) — 10% self-imposed penalty for late TD payments.
+  isLate        Boolean @default(false) @map("is_late")
+  penaltyAmount Decimal @default(0) @map("penalty_amount") @db.Decimal(10, 2)
+
+  /// Calculation inputs: AWE, rate, statutory basis, etc. Stored as JSON for auditability.
+  calculationInputs Json? @map("calculation_inputs")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  claim Claim @relation(fields: [claimId], references: [id])
+
+  @@index([claimId], map: "idx_benefit_payments_claim_id")
+  @@index([paymentType], map: "idx_benefit_payments_payment_type")
+  @@index([paymentDate], map: "idx_benefit_payments_payment_date")
+  @@index([claimId, paymentType], map: "idx_benefit_payments_claim_type")
+  @@index([isLate], map: "idx_benefit_payments_is_late")
+  @@map("benefit_payments")
+}
+
+/// User education state for progressive disclosure — gates product access until training complete.
+model EducationProfile {
+  id     String @id @default(cuid()) @map("id")
+  userId String @unique @map("user_id")
+
+  /// Tier 1 legal terms the user has dismissed (understood).
+  dismissedTerms String[] @map("dismissed_terms")
+
+  /// Training module completion: { moduleId: { completedAt, score } }.
+  trainingModulesCompleted Json? @map("training_modules_completed")
+
+  /// Gate: user cannot access full product until training is complete.
+  isTrainingComplete Boolean @default(false) @map("is_training_complete")
+
+  /// 30-day learning mode window from first login — extended tooltips and guidance.
+  learningModeExpiry DateTime? @map("learning_mode_expiry")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("education_profiles")
+}
+
+/// Immutable audit trail — every significant system event is recorded here.
+/// No updatedAt — audit events are append-only and never modified.
+model AuditEvent {
+  id        String         @id @default(cuid()) @map("id")
+  claimId   String?        @map("claim_id")
+  userId    String         @map("user_id")
+  eventType AuditEventType @map("event_type")
+
+  /// Structured event details — shape varies by eventType.
+  eventData Json? @map("event_data")
+
+  /// UPL zone classification at time of event (for chat/output events).
+  uplZone UplZone? @map("upl_zone")
+
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  /// Immutable — no updatedAt column.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  claim Claim? @relation(fields: [claimId], references: [id])
+  user  User   @relation(fields: [userId], references: [id])
+
+  @@index([claimId], map: "idx_audit_events_claim_id")
+  @@index([userId], map: "idx_audit_events_user_id")
+  @@index([eventType], map: "idx_audit_events_event_type")
+  @@index([createdAt], map: "idx_audit_events_created_at")
+  @@index([claimId, eventType], map: "idx_audit_events_claim_event_type")
+  @@index([userId, eventType], map: "idx_audit_events_user_event_type")
+  @@index([uplZone], map: "idx_audit_events_upl_zone")
+  @@map("audit_events")
+}
