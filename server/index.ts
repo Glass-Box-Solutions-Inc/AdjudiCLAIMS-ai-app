@@ -3,7 +3,9 @@ import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import session from '@fastify/session';
 import { healthRoutes } from './routes/health.js';
+import { authRoutes } from './routes/auth.js';
 import { claimsRoutes } from './routes/claims.js';
+import { organizationRoutes } from './routes/organizations.js';
 
 const PORT = Number(process.env['PORT'] ?? 4901);
 const SESSION_SECRET =
@@ -38,7 +40,9 @@ export async function buildServer() {
 
   // --- API Routes --------------------------------------------------------
   await server.register(healthRoutes, { prefix: '/api' });
+  await server.register(authRoutes, { prefix: '/api' });
   await server.register(claimsRoutes, { prefix: '/api' });
+  await server.register(organizationRoutes, { prefix: '/api' });
 
   return server;
 }

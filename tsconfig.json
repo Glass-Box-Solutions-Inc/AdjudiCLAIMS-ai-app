@@ -26,6 +26,8 @@
     "app/**/*.ts",
     "app/**/*.tsx",
     "server/**/*.ts",
+    "tests/**/*.ts",
+    "prisma/**/*.ts",
     ".react-router/types/**/*.ts",
     "env.d.ts"
   ],

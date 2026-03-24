@@ -39,7 +39,7 @@ describe('Health check endpoints', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const body = response.json() as { status: string; product: string; version: string };
+    const body = response.json<{ status: string; product: string; version: string }>();
     expect(body).toEqual({
       status: 'ok',
       product: 'AdjudiCLAIMS',
@@ -55,7 +55,7 @@ describe('Health check endpoints', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const body = response.json() as { status: string; database: string };
+    const body = response.json<{ status: string; database: string }>();
     expect(body.status).toBe('ok');
     expect(body.database).toBe('connected');
   });

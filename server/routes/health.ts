@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin signature requires async
 export async function healthRoutes(server: FastifyInstance): Promise<void> {
   /**
    * GET /api/health

@@ -22,8 +22,8 @@ export interface UplClassification {
  * @param query - The raw user input to classify.
  * @returns Classification result with zone and reasoning.
  */
-// TODO: Implement LLM-based classification in Phase 2A
-export async function classifyQuery(query: string): Promise<UplClassification> {
+// TODO: Implement LLM-based classification in Phase 4
+export function classifyQuery(query: string): UplClassification {
   // Stub: return GREEN for all queries during scaffold phase.
   // The production implementation will:
   //   1. Send the query to an LLM with a classification system prompt

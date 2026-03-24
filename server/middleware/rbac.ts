@@ -33,7 +33,7 @@ declare module '@fastify/session' {
  */
 export function requireAuth(): preHandlerHookHandler {
   return (request: FastifyRequest, reply: FastifyReply, done) => {
-    const user = request.session.get('user') as SessionUser | undefined;
+    const user = request.session.user;
 
     if (!user) {
       void reply.code(401).send({ error: 'Authentication required' });
@@ -52,7 +52,7 @@ export function requireAuth(): preHandlerHookHandler {
  */
 export function requireRole(...roles: UserRole[]): preHandlerHookHandler {
   return (request: FastifyRequest, reply: FastifyReply, done) => {
-    const user = request.session.get('user') as SessionUser | undefined;
+    const user = request.session.user;
 
     if (!user) {
       void reply.code(401).send({ error: 'Authentication required' });

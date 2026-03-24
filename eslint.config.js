@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- tseslint.config still works; migrate to defineConfig later
 export default tseslint.config(
   { ignores: ['dist/', 'build/', '.react-router/', 'node_modules/'] },
   js.configs.recommended,
@@ -10,7 +11,18 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: [
+            'eslint.config.js',
+            'prettier.config.js',
+            'vite.config.ts',
+            'vitest.config.ts',
+            'vitest.config.integration.ts',
+            'vitest.config.upl.ts',
+            'react-router.config.ts',
+          ],
+          defaultProject: 'tsconfig.json',
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },

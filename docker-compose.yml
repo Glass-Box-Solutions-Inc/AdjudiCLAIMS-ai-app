@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - '5442:5432'
+    environment:
+      POSTGRES_USER: adjudiclaims
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: adjudiclaims
+    volumes:
+      - adjudiclaims_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U adjudiclaims -d adjudiclaims']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  adjudiclaims_postgres_data:

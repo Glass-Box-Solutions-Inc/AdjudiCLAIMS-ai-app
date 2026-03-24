@@ -1,26 +1,15 @@
 import type { FastifyRequest } from 'fastify';
+import type { AuditEventType, UplZone, Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 
-/**
- * Audit event types.
- * Extend this union as new auditable actions are introduced.
- */
-export type AuditEventType =
-  | 'CLAIM_VIEWED'
-  | 'CLAIM_CREATED'
-  | 'CLAIM_UPDATED'
-  | 'AI_QUERY'
-  | 'AI_RESPONSE'
-  | 'UPL_BOUNDARY_HIT'
-  | 'LOGIN'
-  | 'LOGOUT';
+export type { AuditEventType };
 
 export interface AuditEventParams {
   userId: string;
   claimId?: string;
   eventType: AuditEventType;
   eventData?: Record<string, unknown>;
-  uplZone?: 'GREEN' | 'YELLOW' | 'RED';
+  uplZone?: UplZone;
   request: FastifyRequest;
 }
 
@@ -44,7 +33,7 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
         userId,
         claimId: claimId ?? null,
         eventType,
-        eventData: eventData ? JSON.parse(JSON.stringify(eventData)) : undefined,
+        eventData: eventData ? (JSON.parse(JSON.stringify(eventData)) as Prisma.InputJsonValue) : undefined,
         uplZone: uplZone ?? null,
         ipAddress,
         userAgent,
