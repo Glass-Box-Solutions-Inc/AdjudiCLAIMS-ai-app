@@ -10,6 +10,7 @@ import { documentRoutes } from './routes/documents.js';
 import { investigationRoutes } from './routes/investigation.js';
 import { deadlineRoutes } from './routes/deadlines.js';
 import { calculatorRoutes } from './routes/calculator.js';
+import { uplRoutes } from './routes/upl.js';
 
 const PORT = Number(process.env['PORT'] ?? 4901);
 const SESSION_SECRET =
@@ -51,6 +52,7 @@ export async function buildServer() {
   await server.register(investigationRoutes, { prefix: '/api' });
   await server.register(deadlineRoutes, { prefix: '/api' });
   await server.register(calculatorRoutes, { prefix: '/api' });
+  await server.register(uplRoutes, { prefix: '/api' });
 
   return server;
 }
