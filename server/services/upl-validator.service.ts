@@ -16,7 +16,7 @@
  * Any violation detected by the regex scan is CRITICAL and must block the output.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { getLLMAdapter } from '../lib/llm/index.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -187,14 +187,6 @@ If you find violations, respond with a JSON array of objects:
 If no violations found, respond with an empty array: []`;
 
 /**
- * Check whether the Anthropic API key is available in the environment.
- */
-function hasApiKey(): boolean {
-  return typeof process.env['ANTHROPIC_API_KEY'] === 'string' &&
-    process.env['ANTHROPIC_API_KEY'].length > 0;
-}
-
-/**
  * Parse the LLM validation response into violations.
  */
 function parseLlmValidationResponse(responseText: string): Violation[] {
@@ -299,33 +291,30 @@ export async function validateOutputFull(text: string): Promise<ValidationResult
     };
   }
 
-  // Stage 2: LLM validation (if API key available)
+  // Stage 2: LLM validation (adapter returns stub when no API key is configured)
   let llmViolations: Violation[] = [];
 
-  if (hasApiKey()) {
-    try {
-      const client = new Anthropic();
+  try {
+    const adapter = getLLMAdapter('FREE');
+    const response = await adapter.generate({
+      messages: [
+        {
+          role: 'user',
+          content: `Review this AI-generated output for UPL compliance violations:\n\n"${text}"`,
+        },
+      ],
+      systemPrompt: OUTPUT_VALIDATOR_SYSTEM_PROMPT,
+      temperature: 0,
+      maxTokens: 512,
+    });
 
-      const response = await client.messages.create({
-        model: 'claude-3-5-haiku-20241022',
-        max_tokens: 512,
-        system: OUTPUT_VALIDATOR_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: `Review this AI-generated output for UPL compliance violations:\n\n"${text}"`,
-          },
-        ],
-      });
-
-      const textBlock = response.content.find((block) => block.type === 'text');
-      if (textBlock) {
-        llmViolations = parseLlmValidationResponse(textBlock.text);
-      }
-    } catch {
-      // LLM validation errors should not block the output -- regex stage is primary
-      llmViolations = [];
+    // Skip LLM validation if stub response (no API key configured)
+    if (response.finishReason !== 'STUB' && response.content) {
+      llmViolations = parseLlmValidationResponse(response.content);
     }
+  } catch {
+    // LLM validation errors should not block the output -- regex stage is primary
+    llmViolations = [];
   }
 
   const allViolations = [...regexViolations, ...llmViolations];

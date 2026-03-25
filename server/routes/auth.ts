@@ -102,10 +102,15 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
       });
     }
 
-    request.session.destroy((err) => {
-      if (err) {
-        request.log.error({ err }, 'Failed to destroy session');
-      }
+    await new Promise<void>((resolve, reject) => {
+      request.session.destroy((err) => {
+        if (err) {
+          request.log.error({ err }, 'Failed to destroy session');
+          reject(err as Error);
+        } else {
+          resolve();
+        }
+      });
     });
 
     return reply.send({ ok: true });

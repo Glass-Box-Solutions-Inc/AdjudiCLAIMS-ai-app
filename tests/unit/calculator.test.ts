@@ -111,6 +111,7 @@ vi.mock('../../server/services/deadline-engine.service.js', () => ({
   getClaimDeadlines: vi.fn().mockResolvedValue([]),
   getDeadlineSummary: vi.fn().mockResolvedValue({ total: 0, pending: 0, met: 0, missed: 0 }),
   getAllUserDeadlines: vi.fn().mockResolvedValue([]),
+  getAllUserDeadlinesPaginated: vi.fn().mockResolvedValue({ deadlines: [], total: 0 }),
   markDeadline: vi.fn().mockResolvedValue({}),
 }));
 

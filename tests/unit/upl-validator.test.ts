@@ -478,14 +478,14 @@ describe('UPL Output Validator', () => {
       const result = validateOutput('I recommend denying coverage.');
       const violation = result.violations[0];
       expect(violation).toBeDefined();
-      expect(violation.matchedText).toMatch(/i recommend/i);
+      expect(violation?.matchedText).toMatch(/i recommend/i);
     });
 
     it('includes position as a non-negative number', () => {
       const result = validateOutput('I recommend denying coverage.');
       const violation = result.violations[0];
       expect(violation).toBeDefined();
-      expect(violation.position).toBeGreaterThanOrEqual(0);
+      expect(violation?.position).toBeGreaterThanOrEqual(0);
     });
 
     it('includes severity as CRITICAL for all regex patterns', () => {

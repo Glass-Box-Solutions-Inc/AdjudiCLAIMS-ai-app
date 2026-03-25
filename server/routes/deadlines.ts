@@ -17,12 +17,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { requireAuth, UserRole } from '../middleware/rbac.js';
+import { requireAuth } from '../middleware/rbac.js';
 import { logAuditEvent } from '../middleware/audit.js';
+import { verifyClaimAccess } from '../middleware/claim-access.js';
 import {
   getClaimDeadlines,
   getDeadlineSummary,
-  getAllUserDeadlines,
+  getAllUserDeadlinesPaginated,
   markDeadline,
   type UrgencyLevel,
 } from '../services/deadline-engine.service.js';
@@ -64,36 +65,6 @@ const PatchDeadlineBodySchema = z.object({
   status: z.enum(['MET', 'WAIVED']),
   reason: z.string().optional(),
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Verify the caller has access to a claim (org match + role check). */
-async function verifyClaimAccess(
-  claimId: string,
-  userId: string,
-  userRole: UserRole,
-  orgId: string,
-): Promise<{
-  authorized: boolean;
-  claim: { id: string; organizationId: string; assignedExaminerId: string } | null;
-}> {
-  const claim = await prisma.claim.findUnique({
-    where: { id: claimId },
-    select: { id: true, organizationId: true, assignedExaminerId: true },
-  });
-
-  if (!claim || claim.organizationId !== orgId) {
-    return { authorized: false, claim: null };
-  }
-
-  if (userRole === UserRole.CLAIMS_EXAMINER && claim.assignedExaminerId !== userId) {
-    return { authorized: false, claim };
-  }
-
-  return { authorized: true, claim };
-}
 
 // ---------------------------------------------------------------------------
 // Plugin
@@ -162,20 +133,19 @@ export async function deadlineRoutes(server: FastifyInstance): Promise<void> {
 
       const { take, skip, urgency } = queryParsed.data;
 
-      let deadlines = await getAllUserDeadlines(user.id, user.organizationId, user.role);
-
-      // Filter by urgency if specified
-      if (urgency) {
-        deadlines = deadlines.filter((d) => urgency.includes(d.urgency));
-      }
-
-      const total = deadlines.length;
-
-      // Apply pagination
-      const paginated = deadlines.slice(skip, skip + take);
+      const { deadlines, total } = await getAllUserDeadlinesPaginated(
+        user.id,
+        user.organizationId,
+        user.role,
+        {
+          take,
+          skip,
+          urgencyFilter: urgency,
+        },
+      );
 
       return {
-        deadlines: paginated,
+        deadlines,
         total,
         take,
         skip,
@@ -235,8 +205,8 @@ export async function deadlineRoutes(server: FastifyInstance): Promise<void> {
       // Update the deadline
       const updated = await markDeadline(id, status, reason);
 
-      // Audit log — use DEADLINE_MET for both MET and WAIVED
-      const auditEventType = status === 'MET' ? 'DEADLINE_MET' : 'DEADLINE_MET';
+      // Audit log
+      const auditEventType = status === 'MET' ? 'DEADLINE_MET' : 'DEADLINE_WAIVED';
       void logAuditEvent({
         userId: user.id,
         claimId: deadline.claimId,

@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import { prisma } from '../db.js';
 import { requireAuth, UserRole } from '../middleware/rbac.js';
 import { logAuditEvent } from '../middleware/audit.js';
+import { verifyClaimAccess } from '../middleware/claim-access.js';
 import { storageService } from '../services/storage.service.js';
 import { processDocumentPipeline } from '../services/document-pipeline.service.js';
 
@@ -48,33 +49,6 @@ const ListDocumentsQuerySchema = z.object({
       return Number.isFinite(n) && n >= 0 ? n : 0;
     }),
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Verify the caller has access to the given claim (org match + role check). */
-async function verifyClaimAccess(
-  claimId: string,
-  userId: string,
-  userRole: UserRole,
-  orgId: string,
-): Promise<{ authorized: boolean; claim: { id: string; organizationId: string; assignedExaminerId: string } | null }> {
-  const claim = await prisma.claim.findUnique({
-    where: { id: claimId },
-    select: { id: true, organizationId: true, assignedExaminerId: true },
-  });
-
-  if (!claim || claim.organizationId !== orgId) {
-    return { authorized: false, claim: null };
-  }
-
-  if (userRole === UserRole.CLAIMS_EXAMINER && claim.assignedExaminerId !== userId) {
-    return { authorized: false, claim };
-  }
-
-  return { authorized: true, claim };
-}
 
 // ---------------------------------------------------------------------------
 // Plugin
@@ -333,7 +307,7 @@ export async function documentRoutes(server: FastifyInstance): Promise<void> {
       void logAuditEvent({
         userId: user.id,
         claimId: document.claimId,
-        eventType: 'DOCUMENT_UPLOADED', // Using closest available event type
+        eventType: 'DOCUMENT_DELETED',
         eventData: { documentId: document.id, action: 'deleted', fileName: document.fileName },
         request,
       });

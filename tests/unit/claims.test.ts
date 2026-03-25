@@ -47,28 +47,34 @@ const mockClaimCreate = vi.fn();
 const mockDeadlineCreateMany = vi.fn();
 const mockInvestigationCreateMany = vi.fn();
 
-vi.mock('../../server/db.js', () => ({
-  prisma: {
-    $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-    user: {
-      findUnique: (...args: unknown[]) => mockUserFindUnique(...args) as unknown,
-    },
-    claim: {
-      findMany: (...args: unknown[]) => mockClaimFindMany(...args) as unknown,
-      count: (...args: unknown[]) => mockClaimCount(...args) as unknown,
-      findUnique: (...args: unknown[]) => mockClaimFindUnique(...args) as unknown,
-      create: (...args: unknown[]) => mockClaimCreate(...args) as unknown,
-    },
-    regulatoryDeadline: {
-      createMany: (...args: unknown[]) => mockDeadlineCreateMany(...args) as unknown,
-    },
-    investigationItem: {
-      createMany: (...args: unknown[]) => mockInvestigationCreateMany(...args) as unknown,
-    },
-    auditEvent: {
-      create: vi.fn().mockResolvedValue({}),
-    },
+const mockPrisma = {
+  $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+  user: {
+    findUnique: (...args: unknown[]) => mockUserFindUnique(...args) as unknown,
   },
+  claim: {
+    findMany: (...args: unknown[]) => mockClaimFindMany(...args) as unknown,
+    count: (...args: unknown[]) => mockClaimCount(...args) as unknown,
+    findUnique: (...args: unknown[]) => mockClaimFindUnique(...args) as unknown,
+    create: (...args: unknown[]) => mockClaimCreate(...args) as unknown,
+  },
+  regulatoryDeadline: {
+    createMany: (...args: unknown[]) => mockDeadlineCreateMany(...args) as unknown,
+  },
+  investigationItem: {
+    createMany: (...args: unknown[]) => mockInvestigationCreateMany(...args) as unknown,
+  },
+  auditEvent: {
+    create: vi.fn().mockResolvedValue({}),
+  },
+  // $transaction passes the same mock as the tx client to the callback
+  $transaction: vi.fn().mockImplementation(async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => {
+    return fn(mockPrisma);
+  }),
+};
+
+vi.mock('../../server/db.js', () => ({
+  prisma: mockPrisma,
 }));
 
 // Dynamic import after mock is in place

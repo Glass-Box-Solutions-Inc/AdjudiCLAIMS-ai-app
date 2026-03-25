@@ -155,6 +155,7 @@ enum AuditEventType {
   DOCUMENT_UPLOADED
   DOCUMENT_CLASSIFIED
   DOCUMENT_VIEWED
+  DOCUMENT_DELETED
   CLAIM_CREATED
   CLAIM_STATUS_CHANGED
   COVERAGE_DETERMINATION
@@ -164,6 +165,7 @@ enum AuditEventType {
   DEADLINE_CREATED
   DEADLINE_MET
   DEADLINE_MISSED
+  DEADLINE_WAIVED
   CHAT_MESSAGE_SENT
   CHAT_RESPONSE_GENERATED
   UPL_ZONE_CLASSIFICATION
@@ -455,6 +457,7 @@ model RegulatoryDeadline {
   @@index([dueDate], map: "idx_regulatory_deadlines_due_date")
   @@index([status], map: "idx_regulatory_deadlines_status")
   @@index([claimId, status], map: "idx_regulatory_deadlines_claim_status")
+  @@unique([claimId, deadlineType])
   @@index([status, dueDate], map: "idx_regulatory_deadlines_status_due")
   @@map("regulatory_deadlines")
 }
@@ -478,6 +481,7 @@ model InvestigationItem {
 
   @@index([claimId], map: "idx_investigation_items_claim_id")
   @@index([isComplete], map: "idx_investigation_items_is_complete")
+  @@unique([claimId, itemType])
   @@index([claimId, isComplete], map: "idx_investigation_items_claim_complete")
   @@map("investigation_items")
 }

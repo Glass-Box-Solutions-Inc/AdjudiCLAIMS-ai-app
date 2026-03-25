@@ -10,7 +10,7 @@
 
 import { Storage } from '@google-cloud/storage';
 import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -50,7 +50,12 @@ function objectPath(
   docId: string,
   fileName: string,
 ): string {
-  return `${orgId}/${claimId}/${docId}/${fileName}`;
+  // Sanitize: use only the basename, reject path traversal attempts
+  const sanitized = basename(fileName);
+  if (sanitized !== fileName || fileName.includes('..')) {
+    throw new Error('Invalid file name: path traversal detected');
+  }
+  return `${orgId}/${claimId}/${docId}/${sanitized}`;
 }
 
 // ---------------------------------------------------------------------------

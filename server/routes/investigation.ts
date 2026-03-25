@@ -13,9 +13,9 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { prisma } from '../db.js';
 import { requireAuth, UserRole } from '../middleware/rbac.js';
 import { logAuditEvent } from '../middleware/audit.js';
+import { verifyClaimAccess } from '../middleware/claim-access.js';
 import {
   getInvestigationProgress,
   markItemComplete,
@@ -30,33 +30,6 @@ const UpdateItemBodySchema = z.object({
   isComplete: z.boolean(),
   notes: z.string().optional(),
 });
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Verify the caller has access to the given claim (org match + role check). */
-async function verifyClaimAccess(
-  claimId: string,
-  userId: string,
-  userRole: UserRole,
-  orgId: string,
-): Promise<{ authorized: boolean; claim: { id: string; organizationId: string; assignedExaminerId: string } | null }> {
-  const claim = await prisma.claim.findUnique({
-    where: { id: claimId },
-    select: { id: true, organizationId: true, assignedExaminerId: true },
-  });
-
-  if (!claim || claim.organizationId !== orgId) {
-    return { authorized: false, claim: null };
-  }
-
-  if (userRole === UserRole.CLAIMS_EXAMINER && claim.assignedExaminerId !== userId) {
-    return { authorized: false, claim };
-  }
-
-  return { authorized: true, claim };
-}
 
 // ---------------------------------------------------------------------------
 // Plugin

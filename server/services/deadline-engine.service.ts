@@ -348,6 +348,80 @@ export async function getAllUserDeadlines(
 }
 
 /**
+ * Get paginated deadlines visible to a user, with DB-level filtering.
+ *
+ * Unlike getAllUserDeadlines(), this applies pagination at the database level
+ * using take/skip, avoiding loading all deadlines into memory.
+ *
+ * Urgency filtering is still done post-query since urgency is computed,
+ * but we minimize memory usage by limiting the result set.
+ */
+export async function getAllUserDeadlinesPaginated(
+  userId: string,
+  orgId: string,
+  role: UserRole,
+  options: {
+    take?: number;
+    skip?: number;
+    urgencyFilter?: UrgencyLevel[];
+    statusFilter?: DeadlineStatus[];
+  } = {},
+): Promise<{ deadlines: DeadlineWithUrgency[]; total: number }> {
+  const { take = 50, skip = 0, urgencyFilter, statusFilter } = options;
+
+  // Build where clause for DB-level filtering
+  const claimWhere: Record<string, unknown> = {
+    organizationId: orgId,
+  };
+
+  if (role === UserRole.CLAIMS_EXAMINER) {
+    claimWhere['assignedExaminerId'] = userId;
+  }
+
+  const deadlineWhere: Record<string, unknown> = {
+    claim: claimWhere,
+  };
+
+  // Apply status filter at DB level if provided
+  if (statusFilter && statusFilter.length > 0) {
+    deadlineWhere['status'] = { in: statusFilter };
+  }
+
+  // Get total count for pagination metadata
+  const total = await prisma.regulatoryDeadline.count({
+    where: deadlineWhere,
+  });
+
+  // Fetch with DB-level pagination
+  const deadlines = await prisma.regulatoryDeadline.findMany({
+    where: deadlineWhere,
+    orderBy: { dueDate: 'asc' },
+    take: urgencyFilter ? undefined : take, // If urgency filtering, need all for post-filter
+    skip: urgencyFilter ? undefined : skip,
+  });
+
+  const now = new Date();
+  let enriched = deadlines.map((d) => enrichDeadline(d, now));
+
+  // Sort by urgency (most urgent first), then by due date
+  enriched.sort((a, b) => {
+    const urgencyDiff = URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency];
+    if (urgencyDiff !== 0) return urgencyDiff;
+    return a.dueDate.getTime() - b.dueDate.getTime();
+  });
+
+  // Apply urgency filter post-query (urgency is computed, not stored)
+  if (urgencyFilter) {
+    enriched = enriched.filter((d) => urgencyFilter.includes(d.urgency));
+    const filteredTotal = enriched.length;
+    enriched = enriched.slice(skip, skip + take);
+    return { deadlines: enriched, total: filteredTotal };
+  }
+
+  return { deadlines: enriched, total };
+}
+
+/**
  * Mark a deadline as MET or WAIVED.
  *
  * @param deadlineId - The deadline to update

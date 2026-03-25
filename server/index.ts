@@ -2,6 +2,10 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import session from '@fastify/session';
+import rateLimit from '@fastify/rate-limit';
+import { validateEnv } from './lib/env.js';
+import { registerErrorHandler } from './lib/error-handler.js';
+import { prisma } from './db.js';
 import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { claimsRoutes } from './routes/claims.js';
@@ -11,36 +15,53 @@ import { investigationRoutes } from './routes/investigation.js';
 import { deadlineRoutes } from './routes/deadlines.js';
 import { calculatorRoutes } from './routes/calculator.js';
 import { uplRoutes } from './routes/upl.js';
-
-const PORT = Number(process.env['PORT'] ?? 4901);
-const SESSION_SECRET =
-  process.env['SESSION_SECRET'] ?? 'change-me-in-production-min-32chars!';
+import { chatRoutes } from './routes/chat.js';
 
 export async function buildServer() {
+  const env = validateEnv();
+
   const server = Fastify({
     logger: {
       transport:
-        process.env['NODE_ENV'] === 'development'
+        env.NODE_ENV === 'development'
           ? { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss Z' } }
           : undefined,
     },
   });
 
   // --- Plugins -----------------------------------------------------------
+
+  // WI-9: CORS — env-specific allowlist
+  const corsOrigins = env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(',').map((s) => s.trim())
+    : env.NODE_ENV === 'production'
+      ? [] // Must be explicitly configured in production
+      : [true]; // Allow all in development
+
   await server.register(cors, {
-    origin: true,
+    origin:
+      corsOrigins.length === 1 && corsOrigins[0] === true
+        ? true
+        : (corsOrigins as string[]),
     credentials: true,
   });
 
   await server.register(cookie);
 
   await server.register(session, {
-    secret: SESSION_SECRET,
+    secret: env.SESSION_SECRET ?? 'change-me-in-production-min-32chars!',
     cookie: {
-      secure: process.env['NODE_ENV'] === 'production',
+      secure: env.NODE_ENV === 'production',
       httpOnly: true,
+      sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 8, // 8 hours
     },
+  });
+
+  // WI-6: Global rate limit — 100 requests per 15 minutes
+  await server.register(rateLimit, {
+    max: 100,
+    timeWindow: '15 minutes',
   });
 
   // --- API Routes --------------------------------------------------------
@@ -53,21 +74,58 @@ export async function buildServer() {
   await server.register(deadlineRoutes, { prefix: '/api' });
   await server.register(calculatorRoutes, { prefix: '/api' });
   await server.register(uplRoutes, { prefix: '/api' });
+  await server.register(chatRoutes, { prefix: '/api' });
+
+  // WI-2: Global error handler — registered after all routes
+  registerErrorHandler(server);
 
   return server;
 }
 
 // --- Start server (when run directly) ------------------------------------
 async function start() {
+  const env = validateEnv();
   const server = await buildServer();
 
   try {
-    await server.listen({ port: PORT, host: '0.0.0.0' });
-    server.log.info(`AdjudiCLAIMS server listening on port ${String(PORT)}`);
+    await server.listen({ port: env.PORT, host: '0.0.0.0' });
+    server.log.info(`AdjudiCLAIMS server listening on port ${String(env.PORT)}`);
   } catch (err) {
     server.log.error(err);
     process.exit(1);
   }
+
+  // WI-7: Graceful shutdown
+  let isShuttingDown = false;
+
+  const shutdown = async (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    server.log.info(`${signal} received — shutting down gracefully`);
+
+    try {
+      await server.close();
+      await prisma.$disconnect();
+      server.log.info('Shutdown complete');
+      process.exit(0);
+    } catch (err) {
+      server.log.error({ err }, 'Error during shutdown');
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+
+  process.on('uncaughtException', (err) => {
+    server.log.fatal({ err }, 'Uncaught exception');
+    void shutdown('uncaughtException');
+  });
+
+  process.on('unhandledRejection', (err) => {
+    server.log.fatal({ err }, 'Unhandled rejection');
+    void shutdown('unhandledRejection');
+  });
 }
 
 // Only auto-start when run directly (not when imported by tests).

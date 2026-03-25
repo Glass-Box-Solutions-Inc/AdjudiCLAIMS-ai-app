@@ -74,6 +74,7 @@ const mockUserFindUnique = vi.fn();
 const mockClaimFindUnique = vi.fn();
 const mockDeadlineFindMany = vi.fn();
 const mockDeadlineFindUnique = vi.fn();
+const mockDeadlineCount = vi.fn();
 const mockDeadlineUpdate = vi.fn();
 const mockDeadlineCreateMany = vi.fn();
 const mockInvestigationCreateMany = vi.fn();
@@ -93,6 +94,7 @@ vi.mock('../../server/db.js', () => ({
     regulatoryDeadline: {
       findMany: (...args: unknown[]) => mockDeadlineFindMany(...args) as unknown,
       findUnique: (...args: unknown[]) => mockDeadlineFindUnique(...args) as unknown,
+      count: (...args: unknown[]) => mockDeadlineCount(...args) as unknown,
       update: (...args: unknown[]) => mockDeadlineUpdate(...args) as unknown,
       createMany: (...args: unknown[]) => mockDeadlineCreateMany(...args) as unknown,
     },
@@ -475,6 +477,7 @@ describe('Deadline routes', () => {
         createdAt: new Date('2026-03-20'),
       };
 
+      mockDeadlineCount.mockResolvedValueOnce(2);
       mockDeadlineFindMany.mockResolvedValueOnce([greenDeadline, overdueDeadline]);
 
       const response = await server.inject({
@@ -517,6 +520,7 @@ describe('Deadline routes', () => {
         createdAt: new Date('2026-03-20'),
       };
 
+      mockDeadlineCount.mockResolvedValueOnce(2);
       mockDeadlineFindMany.mockResolvedValueOnce([greenDeadline, overdueDeadline]);
 
       const response = await server.inject({
@@ -540,14 +544,14 @@ describe('Deadline routes', () => {
     it('supports pagination', async () => {
       const cookie = await loginAs(server, MOCK_USER);
 
-      // Create 3 deadlines
-      const deadlines = [
-        { ...MOCK_DEADLINE_PENDING, id: 'dl-a', dueDate: new Date('2026-01-01'), createdAt: new Date('2025-12-01') },
+      // DB-level pagination: count returns total (3), findMany returns the
+      // page slice that Prisma would return with take=1, skip=1.
+      const pageSlice = [
         { ...MOCK_DEADLINE_PENDING, id: 'dl-b', dueDate: new Date('2026-01-02'), createdAt: new Date('2025-12-01') },
-        { ...MOCK_DEADLINE_PENDING, id: 'dl-c', dueDate: new Date('2027-12-31'), createdAt: new Date('2026-03-20') },
       ];
 
-      mockDeadlineFindMany.mockResolvedValueOnce(deadlines);
+      mockDeadlineCount.mockResolvedValueOnce(3);
+      mockDeadlineFindMany.mockResolvedValueOnce(pageSlice);
 
       const response = await server.inject({
         method: 'GET',
@@ -573,6 +577,7 @@ describe('Deadline routes', () => {
     it('examiner only sees deadlines for their assigned claims', async () => {
       const cookie = await loginAs(server, MOCK_OTHER_EXAMINER);
 
+      mockDeadlineCount.mockResolvedValueOnce(0);
       mockDeadlineFindMany.mockResolvedValueOnce([]);
 
       const response = await server.inject({

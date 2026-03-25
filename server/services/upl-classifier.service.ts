@@ -16,7 +16,7 @@
  * UPL violations under Cal. Bus. & Prof. Code section 6125 carry real legal risk.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { getLLMAdapter } from '../lib/llm/index.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -312,27 +312,31 @@ function parseLlmResponse(responseText: string): UplClassification {
 }
 
 /**
- * Classify a query using the LLM (Anthropic Claude Haiku).
+ * Classify a query using the LLM (via the LLM abstraction layer).
  * Returns RED as conservative default on any error.
  */
 async function classifyByLlm(query: string): Promise<UplClassification> {
   try {
-    const client = new Anthropic();
-
-    const response = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 256,
-      system: UPL_CLASSIFIER_SYSTEM_PROMPT,
+    const adapter = getLLMAdapter('FREE');
+    const response = await adapter.generate({
       messages: [
         {
           role: 'user',
           content: `Classify this query for UPL compliance:\n\n"${query}"`,
         },
       ],
+      systemPrompt: UPL_CLASSIFIER_SYSTEM_PROMPT,
+      temperature: 0,
+      maxTokens: 256,
     });
 
-    const textBlock = response.content.find((block) => block.type === 'text');
-    if (!textBlock) {
+    // Check for stub response (no API key configured)
+    if (response.finishReason === 'STUB') {
+      return classifyQuerySync(query);
+    }
+
+    const responseText = response.content;
+    if (!responseText) {
       return {
         zone: 'RED',
         reason: 'LLM returned no text content -- conservative default',
@@ -341,7 +345,7 @@ async function classifyByLlm(query: string): Promise<UplClassification> {
       };
     }
 
-    return parseLlmResponse(textBlock.text);
+    return parseLlmResponse(responseText);
   } catch (err) {
     // LLM errors should never crash the request -- fall back to RED
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -357,14 +361,6 @@ async function classifyByLlm(query: string): Promise<UplClassification> {
 // ---------------------------------------------------------------------------
 // Exported functions
 // ---------------------------------------------------------------------------
-
-/**
- * Check whether the Anthropic API key is available in the environment.
- */
-function hasApiKey(): boolean {
-  return typeof process.env['ANTHROPIC_API_KEY'] === 'string' &&
-    process.env['ANTHROPIC_API_KEY'].length > 0;
-}
 
 /**
  * Classify a user query for UPL compliance (synchronous, keyword-only).
@@ -411,16 +407,6 @@ export async function classifyQuery(query: string): Promise<UplClassification> {
     return keywordResult;
   }
 
-  // Stage 2: LLM classification (if API key available)
-  if (hasApiKey()) {
-    return classifyByLlm(query);
-  }
-
-  // No API key -- fall back to keyword-only conservative default
-  return {
-    zone: 'YELLOW',
-    reason: 'No keyword pattern matched and no API key available -- conservative YELLOW default',
-    confidence: 0.5,
-    isAdversarial: false,
-  };
+  // Stage 2: LLM classification (adapter returns stub when no API key is configured)
+  return classifyByLlm(query);
 }

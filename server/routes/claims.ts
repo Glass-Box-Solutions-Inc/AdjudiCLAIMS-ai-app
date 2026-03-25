@@ -259,46 +259,42 @@ export async function claimsRoutes(server: FastifyInstance): Promise<void> {
       const dateOfInjury = new Date(data.dateOfInjury);
       const dateReceived = new Date(data.dateReceived);
 
-      // Create claim and generate deadlines + investigation items in a transaction
-      const claim = await prisma.claim.create({
-        data: {
-          claimNumber: data.claimNumber,
-          claimantName: data.claimantName,
-          dateOfInjury,
-          bodyParts: data.bodyParts,
-          employer: data.employer,
-          insurer: data.insurer,
-          dateReceived,
-          organizationId: user.organizationId,
-          assignedExaminerId: user.id,
-        },
-        select: {
-          id: true,
-          claimNumber: true,
-          claimantName: true,
-          dateOfInjury: true,
-          bodyParts: true,
-          employer: true,
-          insurer: true,
-          status: true,
-          dateReceived: true,
-          assignedExaminerId: true,
-          organizationId: true,
-          createdAt: true,
-        },
-      });
+      // Create claim and generate deadlines + investigation items atomically
+      const claim = await prisma.$transaction(async (tx) => {
+        const newClaim = await tx.claim.create({
+          data: {
+            claimNumber: data.claimNumber,
+            claimantName: data.claimantName,
+            dateOfInjury,
+            bodyParts: data.bodyParts,
+            employer: data.employer,
+            insurer: data.insurer,
+            dateReceived,
+            organizationId: user.organizationId,
+            assignedExaminerId: user.id,
+          },
+          select: {
+            id: true,
+            claimNumber: true,
+            claimantName: true,
+            dateOfInjury: true,
+            bodyParts: true,
+            employer: true,
+            insurer: true,
+            status: true,
+            dateReceived: true,
+            assignedExaminerId: true,
+            organizationId: true,
+            createdAt: true,
+          },
+        });
 
-      // Generate deadlines and investigation items (best-effort, non-blocking for response)
-      try {
-        await generateDeadlines(prisma as unknown as PrismaClient, claim.id, dateReceived);
-        await generateInvestigationItems(prisma as unknown as PrismaClient, claim.id);
-      } catch (err) {
-        // Log but do not fail the claim creation — deadlines can be regenerated
-        request.log.error(
-          { err, claimId: claim.id },
-          'Failed to generate deadlines or investigation items',
-        );
-      }
+        // Generate deadlines and investigation items within the transaction
+        await generateDeadlines(tx as unknown as PrismaClient, newClaim.id, dateReceived);
+        await generateInvestigationItems(tx as unknown as PrismaClient, newClaim.id);
+
+        return newClaim;
+      });
 
       // Audit log — log claim ID only, never claimant PII
       void logAuditEvent({

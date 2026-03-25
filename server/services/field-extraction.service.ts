@@ -13,7 +13,7 @@
  * Results are persisted to the extracted_fields table via Prisma.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { getLLMAdapter } from '../lib/llm/index.js';
 import type { DocumentType } from '@prisma/client';
 import { prisma } from '../db.js';
 
@@ -223,32 +223,28 @@ async function extractWithClaude(
   text: string,
   documentType: DocumentType | null,
 ): Promise<ExtractedField[]> {
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
-  if (!apiKey) {
+  const adapter = getLLMAdapter('FREE');
+  const prompt = buildExtractionPrompt(text, documentType);
+
+  const response = await adapter.generate({
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+    maxTokens: 4096,
+  });
+
+  // No API key configured -- skip LLM extraction
+  if (response.finishReason === 'STUB') {
     return [];
   }
 
-  const client = new Anthropic({ apiKey });
-
-  const prompt = buildExtractionPrompt(text, documentType);
-
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  // Extract text content from the response
-  const textBlock = message.content.find((block) => block.type === 'text');
-  if (!textBlock) {
-    throw new Error('Claude API returned no text content for field extraction');
+  const responseText = response.content;
+  if (!responseText) {
+    throw new Error('LLM returned no text content for field extraction');
   }
 
-  // textBlock is narrowed to { type: 'text', text: string } by the .find() predicate
-  const responseText = (textBlock as { type: 'text'; text: string }).text;
   const parsed: unknown = JSON.parse(responseText);
   if (!Array.isArray(parsed)) {
-    throw new Error('Claude API field extraction did not return a JSON array');
+    throw new Error('LLM field extraction did not return a JSON array');
   }
 
   const fields: ExtractedField[] = [];
@@ -361,15 +357,13 @@ export async function extractFields(
   // Pass 1: regex-based extraction (always runs)
   const regexFields = extractWithRegex(text);
 
-  // Pass 2: Claude API extraction (only when API key is configured)
+  // Pass 2: LLM extraction (adapter returns stub when no API key is configured)
   let claudeFields: ExtractedField[] = [];
-  if (process.env['ANTHROPIC_API_KEY']) {
-    try {
-      claudeFields = await extractWithClaude(text, documentType);
-    } catch {
-      // Claude API call failed (auth error, rate limit, etc.) — fall back to regex-only.
-      // This is non-fatal: regex extraction still provides useful fields.
-    }
+  try {
+    claudeFields = await extractWithClaude(text, documentType);
+  } catch {
+    // LLM call failed (auth error, rate limit, etc.) — fall back to regex-only.
+    // This is non-fatal: regex extraction still provides useful fields.
   }
 
   // Merge and deduplicate
