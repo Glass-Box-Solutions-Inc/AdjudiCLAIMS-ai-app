@@ -181,8 +181,80 @@ enum AuditEventType {
   USER_LOGIN
   USER_LOGOUT
   PERMISSION_DENIED
+  // Phase 10: Letter generation
+  LETTER_GENERATED
+  // Phase 10: Enhanced counsel referral
+  COUNSEL_REFERRAL_CREATED
+  COUNSEL_REFERRAL_STATUS_CHANGED
+  // Phase 10: Compliance reporting
+  COMPLIANCE_REPORT_GENERATED
+  // Phase 10: Lien management
+  LIEN_CREATED
+  LIEN_STATUS_CHANGED
+  LIEN_OMFS_COMPARED
+  LIEN_RESOLVED
+  // Phase 10: Ongoing education
+  REGULATORY_CHANGE_ACKNOWLEDGED
+  MONTHLY_REVIEW_COMPLETED
+  QUARTERLY_REFRESHER_COMPLETED
 
   @@map("audit_event_type")
+}
+
+// Phase 10 enums
+
+enum LetterType {
+  TD_BENEFIT_EXPLANATION
+  TD_PAYMENT_SCHEDULE
+  WAITING_PERIOD_NOTICE
+  EMPLOYER_NOTIFICATION_LC3761
+  BENEFIT_ADJUSTMENT_NOTICE
+
+  @@map("letter_type")
+}
+
+enum ReferralStatus {
+  PENDING
+  SENT
+  RESPONDED
+  CLOSED
+
+  @@map("referral_status")
+}
+
+enum LienType {
+  MEDICAL_PROVIDER
+  ATTORNEY_FEE
+  EDD
+  EXPENSE
+  CHILD_SUPPORT
+  OTHER
+
+  @@map("lien_type")
+}
+
+enum LienStatus {
+  RECEIVED
+  UNDER_REVIEW
+  OMFS_COMPARED
+  NEGOTIATING
+  PAID_IN_FULL
+  PAID_REDUCED
+  DISPUTED
+  WITHDRAWN
+  WCAB_HEARING
+  RESOLVED_BY_ORDER
+
+  @@map("lien_status")
+}
+
+enum FilingFeeStatus {
+  PAID
+  NOT_PAID
+  EXEMPT
+  UNKNOWN
+
+  @@map("filing_fee_status")
 }
 
 enum WorkflowStepStatus {
@@ -235,6 +307,10 @@ model User {
   completedInvestigationItems InvestigationItem[] @relation("CompletedBy")
 
   workflowProgress WorkflowProgress[]
+
+  // Phase 10 relations
+  generatedLetters  GeneratedLetter[]
+  counselReferrals  CounselReferral[]
 
   @@index([organizationId], map: "idx_users_organization_id")
   @@index([email], map: "idx_users_email")
@@ -292,6 +368,11 @@ model Claim {
   benefitPayments    BenefitPayment[]
   timelineEvents     TimelineEvent[]
   workflowProgress   WorkflowProgress[]
+
+  // Phase 10 relations
+  generatedLetters  GeneratedLetter[]
+  counselReferrals  CounselReferral[]
+  liens             Lien[]
 
   @@index([organizationId], map: "idx_claims_organization_id")
   @@index([assignedExaminerId], map: "idx_claims_assigned_examiner_id")
@@ -544,6 +625,22 @@ model EducationProfile {
   /// 30-day learning mode window from first login — extended tooltips and guidance.
   learningModeExpiry DateTime? @map("learning_mode_expiry")
 
+  // Phase 10 — Layer 3: Ongoing Education
+  /// Regulatory change IDs the user has acknowledged.
+  acknowledgedChanges String[] @map("acknowledged_changes")
+
+  /// Monthly compliance reviews: { "2026-03": { completedAt, missedDeadlines } }.
+  monthlyReviewsCompleted Json? @map("monthly_reviews_completed")
+
+  /// Quarterly refresher completions: { "2026-Q1": { completedAt, score } }.
+  quarterlyRefreshers Json? @map("quarterly_refreshers")
+
+  /// Audit-triggered training: { findingId: { moduleId, completedAt, score } }.
+  auditTrainingCompleted Json? @map("audit_training_completed")
+
+  /// Last annual recertification date.
+  lastRecertificationDate DateTime? @map("last_recertification_date")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -606,4 +703,103 @@ model AuditEvent {
   @@index([userId, eventType], map: "idx_audit_events_user_event_type")
   @@index([uplZone], map: "idx_audit_events_upl_zone")
   @@map("audit_events")
+}
+
+// =============================================================================
+// Phase 10 Models
+// =============================================================================
+
+/// Generated correspondence letter — benefit explanations, employer notifications, etc.
+model GeneratedLetter {
+  id            String     @id @default(cuid()) @map("id")
+  claimId       String     @map("claim_id")
+  userId        String     @map("user_id")
+  letterType    LetterType @map("letter_type")
+  content       String     @map("content")
+  templateId    String     @map("template_id")
+  populatedData Json       @map("populated_data")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  claim Claim @relation(fields: [claimId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([claimId, letterType], map: "idx_generated_letters_claim_type")
+  @@index([userId], map: "idx_generated_letters_user_id")
+  @@map("generated_letters")
+}
+
+/// Tracked counsel referral — factual summary + status + defense counsel response.
+model CounselReferral {
+  id              String         @id @default(cuid()) @map("id")
+  claimId         String         @map("claim_id")
+  userId          String         @map("user_id")
+  legalIssue      String         @map("legal_issue")
+  summary         String         @map("summary")
+  status          ReferralStatus @default(PENDING) @map("status")
+  counselEmail    String?        @map("counsel_email")
+  counselResponse String?        @map("counsel_response")
+  respondedAt     DateTime?      @map("responded_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  claim Claim @relation(fields: [claimId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([claimId, status], map: "idx_counsel_referrals_claim_status")
+  @@index([userId], map: "idx_counsel_referrals_user_id")
+  @@map("counsel_referrals")
+}
+
+/// Lien filed against a workers' compensation claim.
+model Lien {
+  id                  String          @id @default(cuid()) @map("id")
+  claimId             String          @map("claim_id")
+  lienClaimant        String          @map("lien_claimant")
+  lienType            LienType        @map("lien_type")
+  totalAmountClaimed  Decimal         @map("total_amount_claimed") @db.Decimal(12, 2)
+  totalOmfsAllowed    Decimal?        @map("total_omfs_allowed") @db.Decimal(12, 2)
+  discrepancyAmount   Decimal?        @map("discrepancy_amount") @db.Decimal(12, 2)
+  filingDate          DateTime        @map("filing_date") @db.Date
+  filingFeeStatus     FilingFeeStatus @default(UNKNOWN) @map("filing_fee_status")
+  status              LienStatus      @default(RECEIVED) @map("status")
+  resolvedAmount      Decimal?        @map("resolved_amount") @db.Decimal(12, 2)
+  resolvedAt          DateTime?       @map("resolved_at")
+  wcabCaseNumber      String?         @map("wcab_case_number")
+  notes               String?         @map("notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  claim     Claim          @relation(fields: [claimId], references: [id])
+  lineItems LienLineItem[]
+
+  @@index([claimId, status], map: "idx_liens_claim_status")
+  @@index([lienType], map: "idx_liens_lien_type")
+  @@index([status], map: "idx_liens_status")
+  @@map("liens")
+}
+
+/// Individual line item on a lien — with OMFS fee schedule comparison.
+model LienLineItem {
+  id              String   @id @default(cuid()) @map("id")
+  lienId          String   @map("lien_id")
+  serviceDate     DateTime @map("service_date") @db.Date
+  cptCode         String?  @map("cpt_code")
+  description     String   @map("description")
+  amountClaimed   Decimal  @map("amount_claimed") @db.Decimal(10, 2)
+  omfsRate        Decimal? @map("omfs_rate") @db.Decimal(10, 2)
+  isOvercharge    Boolean  @default(false) @map("is_overcharge")
+  overchargeAmount Decimal? @map("overcharge_amount") @db.Decimal(10, 2)
+
+  // Relations
+  lien Lien @relation(fields: [lienId], references: [id], onDelete: Cascade)
+
+  @@index([lienId], map: "idx_lien_line_items_lien_id")
+  @@index([cptCode], map: "idx_lien_line_items_cpt_code")
+  @@map("lien_line_items")
 }

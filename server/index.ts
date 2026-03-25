@@ -21,6 +21,12 @@ import { trainingRoutes } from './routes/training.js';
 import { workflowRoutes } from './routes/workflows.js';
 import { auditRoutes } from './routes/audit.js';
 import { complianceRoutes } from './routes/compliance.js';
+// Phase 10 route imports
+import { reportRoutes } from './routes/reports.js';
+import { letterRoutes } from './routes/letters.js';
+import { referralRoutes } from './routes/referrals.js';
+import { mtusRoutes } from './routes/mtus.js';
+import { lienRoutes } from './routes/liens.js';
 
 export async function buildServer() {
   const env = validateEnv();
@@ -85,6 +91,12 @@ export async function buildServer() {
   await server.register(workflowRoutes, { prefix: '/api' });
   await server.register(auditRoutes, { prefix: '/api' });
   await server.register(complianceRoutes, { prefix: '/api' });
+  // Phase 10 routes
+  await server.register(reportRoutes, { prefix: '/api' });
+  await server.register(letterRoutes, { prefix: '/api' });
+  await server.register(referralRoutes, { prefix: '/api' });
+  await server.register(mtusRoutes, { prefix: '/api' });
+  await server.register(lienRoutes, { prefix: '/api' });
 
   // WI-2: Global error handler — registered after all routes
   registerErrorHandler(server);

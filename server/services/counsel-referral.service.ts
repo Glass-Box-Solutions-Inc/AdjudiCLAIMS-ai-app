@@ -11,6 +11,7 @@
  */
 
 import type { FastifyRequest } from 'fastify';
+import type { CounselReferral, ReferralStatus } from '@prisma/client';
 import { prisma } from '../db.js';
 import { getLLMAdapter } from '../lib/llm/index.js';
 import { COUNSEL_REFERRAL_PROMPT } from '../prompts/adjudiclaims-chat.prompts.js';
@@ -288,4 +289,183 @@ export async function generateCounselReferral(
     validation,
     wasBlocked: false,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Tracked referral types
+// ---------------------------------------------------------------------------
+
+export type CounselReferralRecord = CounselReferral;
+
+// ---------------------------------------------------------------------------
+// Valid status transitions
+// ---------------------------------------------------------------------------
+
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  PENDING: ['SENT', 'CLOSED'],
+  SENT: ['RESPONDED', 'CLOSED'],
+  RESPONDED: ['CLOSED'],
+  CLOSED: [],
+};
+
+/**
+ * Check whether a status transition is allowed.
+ *
+ * Valid transitions:
+ *   PENDING  → SENT | CLOSED
+ *   SENT     → RESPONDED | CLOSED
+ *   RESPONDED → CLOSED
+ *   CLOSED   → (none)
+ */
+export function isValidStatusTransition(from: string, to: string): boolean {
+  const allowed = VALID_TRANSITIONS[from];
+  return allowed !== undefined && allowed.includes(to);
+}
+
+// ---------------------------------------------------------------------------
+// Tracked referral CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a tracked counsel referral.
+ *
+ * Generates a factual summary via the existing `generateCounselReferral()`
+ * function and persists the referral record with status PENDING.
+ *
+ * Logs a COUNSEL_REFERRAL_CREATED audit event.
+ */
+export async function createTrackedReferral(
+  userId: string,
+  claimId: string,
+  legalIssue: string,
+  request: FastifyRequest,
+): Promise<CounselReferralRecord> {
+  // Generate the summary using the existing function
+  const referralResponse = await generateCounselReferral({
+    claimId,
+    userId,
+    legalIssue,
+    request,
+  });
+
+  // Persist the referral
+  const referral = await prisma.counselReferral.create({
+    data: {
+      claimId,
+      userId,
+      legalIssue,
+      summary: referralResponse.summary,
+      status: 'PENDING',
+    },
+  });
+
+  void logAuditEvent({
+    userId,
+    claimId,
+    eventType: 'COUNSEL_REFERRAL_CREATED',
+    eventData: {
+      referralId: referral.id,
+      wasBlocked: referralResponse.wasBlocked,
+      sectionCount: referralResponse.sections.length,
+    },
+    request,
+  });
+
+  return referral;
+}
+
+/**
+ * Get all referrals for a claim, ordered newest-first.
+ */
+export async function getClaimReferrals(
+  claimId: string,
+): Promise<CounselReferralRecord[]> {
+  return prisma.counselReferral.findMany({
+    where: { claimId },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+/**
+ * Get a specific referral by ID.
+ */
+export async function getReferralById(
+  referralId: string,
+): Promise<CounselReferralRecord | null> {
+  return prisma.counselReferral.findUnique({
+    where: { id: referralId },
+  });
+}
+
+/**
+ * Update referral status with transition validation.
+ *
+ * Enforces valid transitions:
+ *   PENDING → SENT, SENT → RESPONDED, RESPONDED → CLOSED, any → CLOSED
+ *
+ * Optionally sets counselResponse and counselEmail.
+ * Logs a COUNSEL_REFERRAL_STATUS_CHANGED audit event.
+ */
+export async function updateReferralStatus(
+  referralId: string,
+  status: string,
+  request: FastifyRequest,
+  counselResponse?: string,
+  counselEmail?: string,
+): Promise<CounselReferralRecord> {
+  const existing = await prisma.counselReferral.findUnique({
+    where: { id: referralId },
+  });
+
+  if (!existing) {
+    throw new Error(`Referral not found: ${referralId}`);
+  }
+
+  if (!isValidStatusTransition(existing.status, status)) {
+    throw new Error(
+      `Invalid status transition: ${existing.status} → ${status}`,
+    );
+  }
+
+  const updateData: {
+    status: ReferralStatus;
+    counselResponse?: string;
+    counselEmail?: string;
+    respondedAt?: Date;
+  } = {
+    status: status as ReferralStatus,
+  };
+
+  if (counselResponse !== undefined) {
+    updateData.counselResponse = counselResponse;
+  }
+
+  if (counselEmail !== undefined) {
+    updateData.counselEmail = counselEmail;
+  }
+
+  if (status === 'RESPONDED') {
+    updateData.respondedAt = new Date();
+  }
+
+  const updated = await prisma.counselReferral.update({
+    where: { id: referralId },
+    data: updateData,
+  });
+
+  const user = request.session.user;
+
+  void logAuditEvent({
+    userId: user?.id ?? 'unknown',
+    claimId: existing.claimId,
+    eventType: 'COUNSEL_REFERRAL_STATUS_CHANGED',
+    eventData: {
+      referralId,
+      previousStatus: existing.status,
+      newStatus: status,
+    },
+    request,
+  });
+
+  return updated;
 }

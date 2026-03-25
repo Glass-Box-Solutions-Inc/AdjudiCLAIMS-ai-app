@@ -1,5 +1,5 @@
 /**
- * Decision workflow definitions — 5 MVP step-by-step workflows.
+ * Decision workflow definitions — 20 step-by-step workflows.
  *
  * Each workflow guides a claims examiner through a regulatory process
  * with step-by-step instructions, statutory citations, and compliance notes.
@@ -875,6 +875,1421 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
           'before the first WCAB conference date. The evidentiary file is the ' +
           'carrier\'s defense — any gap in the investigation record becomes the ' +
           'applicant attorney\'s argument at trial. Preserve everything.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 6. UR TREATMENT AUTHORIZATION
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'ur_treatment_authorization',
+    title: 'UR Treatment Authorization',
+    description:
+      'Process for reviewing and determining treatment requests under the ' +
+      'utilization review framework. All treatment requests must be evaluated ' +
+      'against the MTUS/ACOEM guidelines within statutory timeframes.',
+    uplZone: 'GREEN',
+    authority: 'LC 4610; 8 CCR 9792.6; 8 CCR 9792.9',
+    featureContext: 'UTILIZATION_REVIEW' as FeatureContext,
+    estimatedMinutes: 15,
+    steps: [
+      {
+        id: 'ur_step_1',
+        title: 'Receive treatment request',
+        description:
+          'Log receipt of the Request for Authorization (RFA) from the treating ' +
+          'physician. Record date received — this starts the UR clock. Verify the ' +
+          'RFA contains the required elements: diagnosis, proposed treatment, and ' +
+          'clinical justification.',
+        authority: '8 CCR 9792.6.1(a)',
+        complianceNote:
+          'Under 8 CCR 9792.9.1, prospective UR decisions must be made within 5 ' +
+          'business days of receipt. Failure to act within the timeframe results in ' +
+          'automatic authorization of the requested treatment.',
+        isSkippable: false,
+      },
+      {
+        id: 'ur_step_2',
+        title: 'Check MTUS/ACOEM guidelines',
+        description:
+          'Compare the requested treatment against the Medical Treatment Utilization ' +
+          'Schedule (MTUS) and ACOEM guidelines. Determine if the treatment is ' +
+          'presumptively correct under the guidelines for the diagnosed condition.',
+        authority: 'LC 4610(a); 8 CCR 9792.21',
+        complianceNote:
+          'Treatment consistent with MTUS is presumptively correct. The UR reviewer ' +
+          'bears the burden of rebutting with a preponderance of evidence if denying ' +
+          'guideline-compliant treatment.',
+        isSkippable: false,
+      },
+      {
+        id: 'ur_step_3',
+        title: 'Apply UR decision criteria',
+        description:
+          'Evaluate the request using evidence-based criteria. If modifying or ' +
+          'denying, document the specific medical rationale with citations to ' +
+          'MTUS, ACOEM, or peer-reviewed literature. The reviewer must be a ' +
+          'licensed physician competent in the relevant specialty.',
+        authority: '8 CCR 9792.7; LC 4610(b)',
+        complianceNote:
+          'UR decisions to deny or modify must be made by a physician reviewer. ' +
+          'Non-physician reviewers may only approve treatment requests.',
+        isSkippable: false,
+      },
+      {
+        id: 'ur_step_4',
+        title: 'Issue UR determination',
+        description:
+          'Issue the written determination to the requesting physician and injured ' +
+          'worker. Include the clinical reasons, guidelines relied upon, and the ' +
+          'right to Independent Medical Review (IMR) if the request is denied or ' +
+          'modified.',
+        authority: '8 CCR 9792.9.1; LC 4610.5',
+        complianceNote:
+          'The determination letter must include IMR appeal rights. Failure to ' +
+          'include appeal rights is a compliance violation subject to DOI audit ' +
+          'findings.',
+        isSkippable: false,
+      },
+      {
+        id: 'ur_step_5',
+        title: 'Track IMR if disputed',
+        description:
+          'If the injured worker or treating physician disputes the UR decision, ' +
+          'track the IMR application. The IMR is conducted by an independent ' +
+          'reviewer through Maximus. Monitor for the IMR determination and ' +
+          'implement the result.',
+        authority: 'LC 4610.5; LC 4610.6',
+        complianceNote:
+          'IMR decisions are binding on all parties. The claims administrator must ' +
+          'implement the IMR determination within the timeframes specified.',
+        isSkippable: true,
+        skipReason:
+          'Only applicable when a UR denial or modification is disputed by the ' +
+          'injured worker or treating physician.',
+      },
+      {
+        id: 'ur_step_6',
+        title: 'Document UR outcome in claim file',
+        description:
+          'Record the final UR determination (approved, modified, or denied) and ' +
+          'any IMR outcome in the claim file. Update treatment authorization ' +
+          'status and ensure the treating physician is notified of the result.',
+        authority: '8 CCR 9792.6; 10 CCR 2695.5(b)',
+        complianceNote:
+          'Complete documentation of the UR process is required for DOI audit ' +
+          'compliance. Every step from RFA receipt to final determination must ' +
+          'be documented with dates.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 7. QME/AME PROCESS MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'qme_ame_process',
+    title: 'QME/AME Process Management',
+    description:
+      'Manage the medical-legal evaluation process using Qualified Medical ' +
+      'Evaluators (QME) or Agreed Medical Evaluators (AME). Covers the ' +
+      'full lifecycle from identifying the need through applying findings.',
+    uplZone: 'GREEN',
+    authority: 'LC 4060; LC 4061; LC 4062; 8 CCR 31',
+    featureContext: 'MEDICAL_REVIEW' as FeatureContext,
+    estimatedMinutes: 15,
+    steps: [
+      {
+        id: 'qme_step_1',
+        title: 'Identify need for medical-legal evaluation',
+        description:
+          'Determine that a disputed medical issue requires a QME or AME ' +
+          'evaluation. Common triggers: disputed diagnosis, disputed WPI, ' +
+          'disputed causation, disputed need for treatment, or disputed ' +
+          'work restrictions.',
+        authority: 'LC 4060; LC 4061',
+        complianceNote:
+          'Under LC 4060, when a medical issue is disputed, the parties must ' +
+          'use the QME/AME process. The treating physician\'s report alone ' +
+          'cannot resolve a disputed medical issue at the WCAB.',
+        isSkippable: false,
+      },
+      {
+        id: 'qme_step_2',
+        title: 'Request QME panel or select AME',
+        description:
+          'For represented workers: attempt AME agreement first. If no agreement, ' +
+          'request a QME panel from the DWC Medical Unit. For unrepresented ' +
+          'workers: request a QME panel directly. The panel provides three ' +
+          'physicians in the relevant specialty.',
+        authority: 'LC 4062; 8 CCR 31.1',
+        complianceNote:
+          'Panel request must be filed with the DWC Medical Unit. The injured ' +
+          'worker has the right to select from the three-physician panel.',
+        isSkippable: false,
+      },
+      {
+        id: 'qme_step_3',
+        title: 'Schedule and attend evaluation',
+        description:
+          'Coordinate scheduling of the QME/AME examination. Provide the ' +
+          'evaluator with relevant medical records and a cover letter listing ' +
+          'the disputed issues. Ensure the injured worker receives appointment ' +
+          'details and any required forms.',
+        authority: '8 CCR 35; 8 CCR 36',
+        complianceNote:
+          'Records must be sent to the evaluator at least 20 days before the ' +
+          'exam. Ex parte communication with the QME is prohibited under ' +
+          'LC 4062.1 for represented workers.',
+        isSkippable: false,
+      },
+      {
+        id: 'qme_step_4',
+        title: 'Receive and review evaluation report',
+        description:
+          'Receive the QME/AME report and verify it addresses all disputed ' +
+          'issues. Check that the report includes AMA Guides ratings, ' +
+          'apportionment analysis, causation opinions, and work restriction ' +
+          'assessments as applicable.',
+        authority: 'LC 4061; 8 CCR 36.5',
+        complianceNote:
+          'The QME/AME report carries significant evidentiary weight at the ' +
+          'WCAB. Review carefully for completeness before relying on findings.',
+        isSkippable: false,
+      },
+      {
+        id: 'qme_step_5',
+        title: 'Apply findings to claim',
+        description:
+          'Update claim records with the QME/AME findings: WPI rating, ' +
+          'apportionment, work restrictions, future medical needs. Adjust ' +
+          'reserves based on the evaluation results. Recalculate PD if a ' +
+          'new WPI rating was issued.',
+        authority: 'LC 4660; LC 4663',
+        complianceNote:
+          'QME/AME findings drive benefit calculations. Updated reserves and ' +
+          'benefit adjustments should be documented promptly after report receipt.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 8. RESERVE SETTING & REVIEW
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'reserve_setting',
+    title: 'Reserve Setting & Review',
+    description:
+      'Process for setting and periodically reviewing claim reserves across ' +
+      'indemnity, medical, legal expense, and lien categories. Adequate ' +
+      'reserving supports good faith settlement obligations.',
+    uplZone: 'GREEN',
+    authority: 'Ins. Code 790.03(h)(6); carrier reserve guidelines',
+    featureContext: 'BENEFIT_CALCULATION' as FeatureContext,
+    estimatedMinutes: 10,
+    steps: [
+      {
+        id: 'reserve_step_1',
+        title: 'Assess total claim exposure',
+        description:
+          'Evaluate injury severity, body parts, worker demographics, wage ' +
+          'level, and treatment trajectory. Identify comparable claim data ' +
+          'and benchmarks to estimate total exposure across all benefit categories.',
+        authority: 'Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Reserve accuracy underpins the carrier\'s ability to make good ' +
+          'faith settlement offers. Systematic under-reserving is a DOI ' +
+          'audit finding.',
+        isSkippable: false,
+      },
+      {
+        id: 'reserve_step_2',
+        title: 'Set initial reserves by category',
+        description:
+          'Set reserves in four categories: (1) Indemnity — TD and PD; ' +
+          '(2) Medical — treatment costs; (3) Legal expense (ALAE) — defense ' +
+          'attorney fees; (4) Liens — medical provider liens, EDD, Medicare. ' +
+          'Document the rationale for each category amount.',
+        authority: 'Ins. Code 790.03(h)(6); carrier guidelines',
+        complianceNote:
+          'Each category should be independently evaluated. Do not use a single ' +
+          'lump-sum reserve — category-level detail supports proper settlement ' +
+          'authority and actuarial analysis.',
+        isSkippable: false,
+      },
+      {
+        id: 'reserve_step_3',
+        title: 'Document reserve rationale',
+        description:
+          'Record the factual basis for each reserve amount: injury type, medical ' +
+          'evidence, wage data, comparable claims, and any assumptions. This ' +
+          'documentation is auditable and supports reserve adequacy reviews.',
+        authority: 'Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'DOI auditors review reserve documentation for reasonableness. ' +
+          'Undocumented reserves are presumed inadequate.',
+        isSkippable: false,
+      },
+      {
+        id: 'reserve_step_4',
+        title: 'Conduct periodic reserve review',
+        description:
+          'Review reserves at regular intervals (typically 90 days) and upon ' +
+          'significant claim developments: new medical reports, QME/AME findings, ' +
+          'surgery authorization, or litigation activity.',
+        authority: 'Carrier best practices; Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Stale reserves are inaccurate reserves. Regular review ensures the ' +
+          'claim file reflects current exposure and supports timely settlement.',
+        isSkippable: false,
+      },
+      {
+        id: 'reserve_step_5',
+        title: 'Adjust for claim developments',
+        description:
+          'Increase or decrease reserves based on new information. Common ' +
+          'triggers: surgery approved, WPI rating received, litigation filed, ' +
+          'lien filed, settlement negotiations initiated. Document the reason ' +
+          'for each adjustment.',
+        authority: 'Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Reserve adjustments should be contemporaneous with the triggering ' +
+          'event. Delayed adjustments distort claim financials.',
+        isSkippable: false,
+      },
+      {
+        id: 'reserve_step_6',
+        title: 'Escalate if above authority level',
+        description:
+          'If the total reserve exceeds your individual authority level, ' +
+          'escalate to your supervisor or the appropriate authority level for ' +
+          'approval. Document the escalation and approval in the claim file.',
+        authority: 'Carrier authority matrix; Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Operating above your reserve authority level is a compliance ' +
+          'violation. Always verify your authority limits before setting ' +
+          'or adjusting reserves.',
+        isSkippable: true,
+        skipReason:
+          'Only required when the reserve amount exceeds the examiner\'s ' +
+          'individual authority level.',
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 9. COUNSEL REFERRAL DECISION
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'counsel_referral',
+    title: 'Counsel Referral Decision',
+    description:
+      'Process for identifying when a claim requires defense counsel and ' +
+      'making an appropriate referral. Legal complexity triggers must be ' +
+      'recognized early to avoid prejudice to the carrier\'s position.',
+    uplZone: 'GREEN',
+    authority: 'B&P 6125; Ins. Code 790.03(h)(6)',
+    featureContext: 'COVERAGE_DETERMINATION' as FeatureContext,
+    estimatedMinutes: 10,
+    steps: [
+      {
+        id: 'counsel_step_1',
+        title: 'Identify referral trigger',
+        description:
+          'Recognize factual indicators requiring legal involvement: applicant ' +
+          'attorney letter of representation, WCAB filing, disputed coverage, ' +
+          'complex apportionment, serious & willful allegations, or death claims.',
+        authority: 'B&P 6125; Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Claims examiners cannot perform legal analysis. When legal issues ' +
+          'arise, referral to licensed counsel is mandatory under B&P 6125.',
+        isSkippable: false,
+      },
+      {
+        id: 'counsel_step_2',
+        title: 'Assess complexity and urgency',
+        description:
+          'Evaluate the nature of the legal issue and any pending deadlines. ' +
+          'Urgent matters include upcoming WCAB hearings, depositions, or ' +
+          'expiring statutes of limitation that require immediate counsel action.',
+        authority: 'Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Delayed referral can prejudice the carrier\'s legal position. ' +
+          'Assess urgency to ensure counsel has adequate preparation time.',
+        isSkippable: false,
+      },
+      {
+        id: 'counsel_step_3',
+        title: 'Select panel counsel',
+        description:
+          'Select defense counsel from the carrier\'s approved panel. Match ' +
+          'attorney expertise to the specific legal issues (e.g., complex ' +
+          'medical, fraud, serious & willful, death benefits).',
+        authority: 'Carrier panel guidelines',
+        complianceNote:
+          'Using approved panel counsel ensures consistent quality and ' +
+          'pre-negotiated fee arrangements.',
+        isSkippable: false,
+      },
+      {
+        id: 'counsel_step_4',
+        title: 'Prepare referral summary',
+        description:
+          'Compile a factual summary for counsel including: claim history, ' +
+          'medical status, benefits paid, disputed issues, pending deadlines, ' +
+          'and all relevant documents. Provide the complete investigation file.',
+        authority: 'Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'A thorough referral package allows counsel to engage effectively ' +
+          'without requesting the same information multiple times.',
+        isSkippable: false,
+      },
+      {
+        id: 'counsel_step_5',
+        title: 'Communicate objectives and authority',
+        description:
+          'Clearly communicate the carrier\'s claims handling objectives to ' +
+          'counsel. Specify the settlement authority, defense strategy goals, ' +
+          'and any carrier-specific guidelines or reporting requirements.',
+        authority: 'Carrier litigation management guidelines',
+        complianceNote:
+          'Defense counsel works at the direction of the claims examiner. ' +
+          'Clear objectives prevent misaligned strategy and unnecessary costs.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 10. DELAY NOTIFICATION
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'delay_notification',
+    title: 'Delay Notification',
+    description:
+      'Process for issuing and managing delay notifications when a claim ' +
+      'determination cannot be made within the initial 40-day period. ' +
+      'Delay letters must be issued every 30 days until a determination is made.',
+    uplZone: 'GREEN',
+    authority: '10 CCR 2695.7(c); LC 5402(b)',
+    featureContext: 'DEADLINE_TRACKING' as FeatureContext,
+    estimatedMinutes: 8,
+    steps: [
+      {
+        id: 'delay_step_1',
+        title: 'Identify approaching determination deadline',
+        description:
+          'Monitor the 40-day accept/deny deadline. If the investigation cannot ' +
+          'be completed before Day 40, a delay notification must be issued. Begin ' +
+          'preparing the delay letter no later than Day 35.',
+        authority: '10 CCR 2695.7(c); LC 5402(b)',
+        complianceNote:
+          'The 40-day deadline runs from receipt of proof of claim. Missing this ' +
+          'deadline without a proper delay letter triggers the LC 5402(b) presumption.',
+        isSkippable: false,
+      },
+      {
+        id: 'delay_step_2',
+        title: 'Determine and document reason for delay',
+        description:
+          'Identify the specific reason the determination cannot be made: awaiting ' +
+          'medical records, awaiting investigation results, awaiting sub rosa, or ' +
+          'other specified reason. The reason must be legitimate and specific.',
+        authority: '10 CCR 2695.7(c)(1)',
+        complianceNote:
+          'Generic or boilerplate delay reasons are DOI audit findings. The ' +
+          'reason must be specific to this claim and factually accurate.',
+        isSkippable: false,
+      },
+      {
+        id: 'delay_step_3',
+        title: 'Draft delay notification letter',
+        description:
+          'Prepare the delay notification letter including: the specific reason ' +
+          'for delay, the information needed to make a determination, the expected ' +
+          'date of determination, and the claimant\'s right to benefits during delay.',
+        authority: '10 CCR 2695.7(c); 8 CCR 10109(d)',
+        complianceNote:
+          'The letter must inform the claimant of the right to receive TD benefits ' +
+          'during the delay period under LC 4650.',
+        isSkippable: false,
+      },
+      {
+        id: 'delay_step_4',
+        title: 'Issue notification to claimant',
+        description:
+          'Send the delay notification to the injured worker (and their attorney ' +
+          'if represented). Document the date sent and method of delivery in the ' +
+          'claim file. Retain a copy in the file.',
+        authority: '10 CCR 2695.7(c)',
+        complianceNote:
+          'Proof of mailing is required. The date of issuance is auditable and ' +
+          'must be within the 40-day window (or 30-day renewal cycle).',
+        isSkippable: false,
+      },
+      {
+        id: 'delay_step_5',
+        title: 'Set 30-day follow-up deadline',
+        description:
+          'Set a 30-day follow-up deadline from the date of the delay letter. ' +
+          'If the determination is still not possible at the 30-day mark, another ' +
+          'delay letter must be issued. Continue the cycle until determination.',
+        authority: '10 CCR 2695.7(c)(2)',
+        complianceNote:
+          'Each 30-day cycle requires a new delay letter with an updated reason. ' +
+          'The delay cannot continue indefinitely — pursue outstanding information ' +
+          'aggressively.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 11. EMPLOYER NOTIFICATION (LC 3761)
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'employer_notification',
+    title: 'Employer Notification (LC 3761)',
+    description:
+      'Process for notifying the employer of an indemnity claim while ' +
+      'maintaining employee medical privacy under LC 3762. Required for ' +
+      'all claims involving indemnity benefits.',
+    uplZone: 'GREEN',
+    authority: 'LC 3761; LC 3762',
+    featureContext: 'CLAIM_INTAKE' as FeatureContext,
+    estimatedMinutes: 8,
+    steps: [
+      {
+        id: 'employer_step_1',
+        title: 'Confirm indemnity claim status',
+        description:
+          'Verify that the claim involves indemnity benefits (TD or PD), which ' +
+          'triggers the employer notification requirement. Medical-only claims ' +
+          'do not require LC 3761 notification.',
+        authority: 'LC 3761',
+        complianceNote:
+          'The notification obligation arises only when indemnity benefits are ' +
+          'payable. Verify the indemnity trigger before sending.',
+        isSkippable: false,
+      },
+      {
+        id: 'employer_step_2',
+        title: 'Prepare employer notification',
+        description:
+          'Draft the notification to the employer including: claim number, ' +
+          'date of injury, general nature of the claim, and the employer\'s ' +
+          'obligations (modified duty, record retention). Do NOT include ' +
+          'medical details.',
+        authority: 'LC 3761',
+        complianceNote:
+          'The notification informs the employer of the claim\'s existence and ' +
+          'their obligations, not the medical specifics.',
+        isSkippable: false,
+      },
+      {
+        id: 'employer_step_3',
+        title: 'Verify medical privacy compliance',
+        description:
+          'Review the notification to ensure no protected medical information ' +
+          'is disclosed. LC 3762 prohibits sharing diagnosis, treatment details, ' +
+          'or medical records with the employer without employee consent.',
+        authority: 'LC 3762',
+        complianceNote:
+          'Violation of LC 3762 medical privacy creates liability for the ' +
+          'carrier. Only share work restrictions relevant to modified duty — ' +
+          'not underlying medical details.',
+        isSkippable: false,
+      },
+      {
+        id: 'employer_step_4',
+        title: 'Send notification to employer',
+        description:
+          'Send the notification to the employer\'s designated contact. Document ' +
+          'the date sent, method of delivery, and recipient in the claim file.',
+        authority: 'LC 3761',
+        complianceNote:
+          'Retain proof of delivery. The notification date is auditable.',
+        isSkippable: false,
+      },
+      {
+        id: 'employer_step_5',
+        title: 'Document in claim file',
+        description:
+          'File a copy of the employer notification in the claim record. Note ' +
+          'the date, recipient, and any employer response or acknowledgment.',
+        authority: 'LC 3761; 10 CCR 2695.5(b)',
+        complianceNote:
+          'Complete documentation supports DOI audit compliance and demonstrates ' +
+          'the carrier met its notification obligations.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 12. DOI AUDIT RESPONSE
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'doi_audit_response',
+    title: 'DOI Audit Response',
+    description:
+      'Process for responding to California Department of Insurance audits ' +
+      'and examinations. Covers file assembly, self-assessment, production, ' +
+      'and response to findings.',
+    uplZone: 'GREEN',
+    authority: '10 CCR 10105; 10 CCR 10106; 10 CCR 10107; 10 CCR 10108',
+    featureContext: 'INVESTIGATION' as FeatureContext,
+    estimatedMinutes: 20,
+    steps: [
+      {
+        id: 'audit_step_1',
+        title: 'Receive audit notice and identify scope',
+        description:
+          'Log receipt of the DOI audit notice. Identify the scope: which claim ' +
+          'files are requested, the audit period, and any specific compliance ' +
+          'areas under review (timeliness, reserves, benefit accuracy).',
+        authority: '10 CCR 10105',
+        complianceNote:
+          'DOI audit notices specify deadlines for file production. Failure to ' +
+          'produce files timely is itself an audit finding.',
+        isSkippable: false,
+      },
+      {
+        id: 'audit_step_2',
+        title: 'Assemble requested claim files',
+        description:
+          'Gather all requested claim files with complete documentation: ' +
+          'correspondence, medical records, benefit payment history, reserves, ' +
+          'investigation notes, and any delay notifications.',
+        authority: '10 CCR 10106',
+        complianceNote:
+          'Files must be complete. Missing documents in a produced file are ' +
+          'worse than a delayed production — they suggest poor record-keeping.',
+        isSkippable: false,
+      },
+      {
+        id: 'audit_step_3',
+        title: 'Run compliance self-check',
+        description:
+          'Before production, review each file against the DOI audit checklist: ' +
+          'timely acknowledgment, timely accept/deny, proper delay letters, ' +
+          'correct benefit calculations, adequate reserves, and proper documentation.',
+        authority: '10 CCR 10107; 10 CCR 2695.7',
+        complianceNote:
+          'Self-assessment allows proactive identification of deficiencies. ' +
+          'Document any issues found and corrective actions taken.',
+        isSkippable: false,
+      },
+      {
+        id: 'audit_step_4',
+        title: 'Produce files to auditor',
+        description:
+          'Submit the assembled files to the DOI auditor by the specified ' +
+          'deadline. Include an index of files produced and any explanatory ' +
+          'cover letter addressing known issues proactively.',
+        authority: '10 CCR 10106',
+        complianceNote:
+          'Timely and organized production demonstrates good faith compliance. ' +
+          'Retain a copy of everything produced.',
+        isSkippable: false,
+      },
+      {
+        id: 'audit_step_5',
+        title: 'Respond to audit findings',
+        description:
+          'Review the DOI audit findings. For each finding, prepare a response: ' +
+          'accept with corrective action plan, or dispute with supporting ' +
+          'documentation. Implement corrective actions promptly.',
+        authority: '10 CCR 10108',
+        complianceNote:
+          'Audit findings may result in penalties. A well-documented corrective ' +
+          'action plan can mitigate penalty severity.',
+        isSkippable: false,
+      },
+      {
+        id: 'audit_step_6',
+        title: 'Appeal if warranted',
+        description:
+          'If audit findings are factually incorrect or legally unsupported, ' +
+          'file an appeal within the specified timeframe. Provide supporting ' +
+          'documentation and legal authority for the appeal.',
+        authority: '10 CCR 10108',
+        complianceNote:
+          'Appeals must be timely filed with specific factual and legal bases. ' +
+          'Consult with management or counsel before appealing.',
+        isSkippable: true,
+        skipReason:
+          'Only applicable when audit findings are disputed and the carrier ' +
+          'has a factual basis for appeal.',
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 13. LIEN MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'lien_management',
+    title: 'Lien Management',
+    description:
+      'Process for managing liens filed against a workers\' compensation ' +
+      'claim. Covers receipt, verification, assessment, negotiation, and ' +
+      'resolution of medical provider, EDD, and Medicare liens.',
+    uplZone: 'GREEN',
+    authority: 'LC 4903; LC 4903.1; LC 4903.05; LC 4903.06',
+    featureContext: 'BENEFIT_CALCULATION' as FeatureContext,
+    estimatedMinutes: 12,
+    steps: [
+      {
+        id: 'lien_step_1',
+        title: 'Receive and log lien',
+        description:
+          'Log receipt of the lien filing including: lien claimant, amount ' +
+          'claimed, type of lien (medical provider, EDD, Medicare), date ' +
+          'filed, and WCAB case number if applicable.',
+        authority: 'LC 4903',
+        complianceNote:
+          'Lien filing dates affect statute of limitations and priority ' +
+          'calculations. Accurate logging is essential.',
+        isSkippable: false,
+      },
+      {
+        id: 'lien_step_2',
+        title: 'Verify filing compliance',
+        description:
+          'Verify the lien meets filing requirements: proper filing fee paid ' +
+          '(LC 4903.05), filed within the statute of limitations, and lien ' +
+          'claimant has standing. Non-compliant liens may be dismissed.',
+        authority: 'LC 4903.05; LC 4903.06',
+        complianceNote:
+          'LC 4903.05 requires a filing fee. Liens filed without the fee are ' +
+          'subject to dismissal. Check compliance before substantive review.',
+        isSkippable: false,
+      },
+      {
+        id: 'lien_step_3',
+        title: 'Assess lien amount against OMFS',
+        description:
+          'Compare the lien amount against the Official Medical Fee Schedule ' +
+          '(OMFS). Determine if the charges are at, above, or below the OMFS ' +
+          'rate. Identify any charges for non-compensable treatment.',
+        authority: 'LC 5307.1; 8 CCR 9789',
+        complianceNote:
+          'OMFS is the maximum reimbursement rate. Charges above OMFS are ' +
+          'subject to reduction. Document the analysis for negotiation.',
+        isSkippable: false,
+      },
+      {
+        id: 'lien_step_4',
+        title: 'Negotiate or dispute lien',
+        description:
+          'Attempt resolution: negotiate the lien amount based on OMFS, ' +
+          'treatment relatedness, and billing accuracy. If the lien cannot ' +
+          'be resolved by agreement, prepare for lien conference at the WCAB.',
+        authority: 'LC 4903.6; LC 4906',
+        complianceNote:
+          'Good faith negotiation before hearing is expected. Document all ' +
+          'settlement offers and counteroffers.',
+        isSkippable: false,
+      },
+      {
+        id: 'lien_step_5',
+        title: 'Track lien through resolution',
+        description:
+          'Monitor the lien through its lifecycle: negotiation, conference, ' +
+          'hearing, and final order. Track deadlines for responses and hearing ' +
+          'appearances. Update reserves to reflect lien exposure.',
+        authority: 'LC 4903; WCAB rules of practice',
+        complianceNote:
+          'Unresolved liens affect claim closure. Track each lien individually ' +
+          'to prevent delays in final claim resolution.',
+        isSkippable: false,
+      },
+      {
+        id: 'lien_step_6',
+        title: 'Document lien resolution',
+        description:
+          'Record the final lien disposition: settlement amount, WCAB order, ' +
+          'or dismissal. Update payment records and close the lien. Adjust ' +
+          'reserves to reflect the resolution.',
+        authority: 'LC 4903; 10 CCR 2695.5(b)',
+        complianceNote:
+          'Complete lien resolution documentation is required for claim ' +
+          'closure and DOI audit compliance.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 14. RETURN-TO-WORK COORDINATION
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'return_to_work',
+    title: 'Return-to-Work Coordination',
+    description:
+      'Process for coordinating the injured worker\'s return to work including ' +
+      'modified duty, benefit adjustments, and SJDB voucher eligibility ' +
+      'assessment when permanent restrictions exist.',
+    uplZone: 'GREEN',
+    authority: 'LC 4658.5; LC 4658.6; LC 4658.7',
+    featureContext: 'MEDICAL_REVIEW' as FeatureContext,
+    estimatedMinutes: 12,
+    steps: [
+      {
+        id: 'rtw_step_1',
+        title: 'Receive work status report',
+        description:
+          'Obtain the treating physician\'s work status report detailing work ' +
+          'restrictions, limitations, and any modified duty recommendations. ' +
+          'Note the effective date and expected duration of restrictions.',
+        authority: '8 CCR 9785',
+        complianceNote:
+          'Work status reports drive benefit adjustments and RTW coordination. ' +
+          'Act promptly upon receipt.',
+        isSkippable: false,
+      },
+      {
+        id: 'rtw_step_2',
+        title: 'Communicate restrictions to employer',
+        description:
+          'Share the work restrictions (not medical details) with the employer ' +
+          'to determine if modified or alternative duty is available. Provide ' +
+          'only the functional limitations, not the underlying diagnosis.',
+        authority: 'LC 3762; LC 4658.5',
+        complianceNote:
+          'Under LC 3762, do not share medical details with the employer. ' +
+          'Only communicate functional restrictions relevant to modified duty.',
+        isSkippable: false,
+      },
+      {
+        id: 'rtw_step_3',
+        title: 'Coordinate modified duty placement',
+        description:
+          'Work with the employer to identify suitable modified duty within ' +
+          'the physician\'s restrictions. Verify the offered position matches ' +
+          'the restrictions and is within reasonable commuting distance.',
+        authority: 'LC 4658.5; LC 4658.6',
+        complianceNote:
+          'Modified duty offers must be bona fide — within restrictions and ' +
+          'within reasonable distance. Document the offer details.',
+        isSkippable: false,
+      },
+      {
+        id: 'rtw_step_4',
+        title: 'Adjust TD benefits',
+        description:
+          'If the worker returns to modified duty at reduced wages, adjust ' +
+          'TD benefits accordingly. If full return to work, terminate TD. ' +
+          'Calculate wage loss differential for partial TD if applicable.',
+        authority: 'LC 4654; LC 4657',
+        complianceNote:
+          'TD adjustments must be based on actual earnings vs. pre-injury ' +
+          'wages. Overpayments and underpayments are both compliance issues.',
+        isSkippable: false,
+      },
+      {
+        id: 'rtw_step_5',
+        title: 'Assess SJDB voucher eligibility',
+        description:
+          'If the worker has permanent restrictions and the employer cannot ' +
+          'offer permanent modified duty, assess eligibility for the Supplemental ' +
+          'Job Displacement Benefit (SJDB) voucher under LC 4658.7.',
+        authority: 'LC 4658.7',
+        complianceNote:
+          'The SJDB voucher must be issued within required timeframes when the ' +
+          'worker qualifies. Failure to issue is a penalty-eligible violation.',
+        isSkippable: true,
+        skipReason:
+          'Only applicable when the worker has permanent work restrictions ' +
+          'and the employer cannot offer permanent modified duty.',
+      },
+      {
+        id: 'rtw_step_6',
+        title: 'Document RTW outcome',
+        description:
+          'Record the RTW outcome in the claim file: full return, modified duty, ' +
+          'or no return with SJDB referral. Update reserves and benefit status ' +
+          'to reflect the current work status.',
+        authority: 'LC 4658.5; 10 CCR 2695.5(b)',
+        complianceNote:
+          'RTW documentation supports benefit accuracy, reserve adequacy, and ' +
+          'DOI audit compliance.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 15. CLAIM CLOSURE
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'claim_closure',
+    title: 'Claim Closure',
+    description:
+      'Process for properly closing a workers\' compensation claim after all ' +
+      'benefits are paid, liens resolved, and deadlines met. Includes reserve ' +
+      'closure, file summary, and reopener watch.',
+    uplZone: 'GREEN',
+    authority: '10 CCR 10102; LC 5410',
+    featureContext: 'CLAIM_INTAKE' as FeatureContext,
+    estimatedMinutes: 15,
+    steps: [
+      {
+        id: 'closure_step_1',
+        title: 'Confirm all benefits paid',
+        description:
+          'Verify that all indemnity benefits (TD, PD) are paid in full per ' +
+          'the award or settlement. Confirm all medical bills are processed ' +
+          'and outstanding medical authorizations are addressed.',
+        authority: 'LC 4650; LC 4700',
+        complianceNote:
+          'Closing a claim with unpaid benefits is a compliance violation. ' +
+          'Verify every benefit category before proceeding.',
+        isSkippable: false,
+      },
+      {
+        id: 'closure_step_2',
+        title: 'Verify no pending liens',
+        description:
+          'Confirm all liens are resolved: paid, settled, or dismissed. Check ' +
+          'for any recently filed liens that may not yet be in the system. ' +
+          'Unresolved liens prevent proper claim closure.',
+        authority: 'LC 4903',
+        complianceNote:
+          'Liens can be filed up to the statute of limitations. Verify no ' +
+          'pending liens exist before closing.',
+        isSkippable: false,
+      },
+      {
+        id: 'closure_step_3',
+        title: 'Confirm all deadlines met',
+        description:
+          'Review the deadline history to confirm all regulatory deadlines were ' +
+          'met: acknowledgment, accept/deny, benefit payments, delay notices, ' +
+          'and any WCAB-ordered deadlines.',
+        authority: '10 CCR 2695.7; LC 5402',
+        complianceNote:
+          'Deadline compliance is the most common DOI audit finding. Verify ' +
+          'before closure to avoid post-closure audit issues.',
+        isSkippable: false,
+      },
+      {
+        id: 'closure_step_4',
+        title: 'Close reserves',
+        description:
+          'Zero out all reserve categories. Document the final paid amounts ' +
+          'vs. original reserves for actuarial analysis. Any remaining reserve ' +
+          'should be released with documented rationale.',
+        authority: 'Carrier guidelines; Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Open reserves on closed claims distort carrier financials. Close ' +
+          'reserves contemporaneously with claim closure.',
+        isSkippable: false,
+      },
+      {
+        id: 'closure_step_5',
+        title: 'Generate closure summary',
+        description:
+          'Create a claim closure summary documenting: total benefits paid by ' +
+          'category, claim duration, key milestones, and final disposition ' +
+          '(C&R, Stip, Award, withdrawal). Archive in the claim file.',
+        authority: '10 CCR 10102',
+        complianceNote:
+          'The closure summary is the permanent record of the claim outcome. ' +
+          'It must be accurate and complete.',
+        isSkippable: false,
+      },
+      {
+        id: 'closure_step_6',
+        title: 'Archive file and set reopener watch',
+        description:
+          'Archive the claim file per carrier retention policies. Set a reopener ' +
+          'watch for the 5-year reopener period under LC 5410. Monitor for ' +
+          'petitions to reopen based on new and further disability.',
+        authority: 'LC 5410',
+        complianceNote:
+          'Under LC 5410, a claim may be reopened within 5 years of the date ' +
+          'of injury for new and further disability. The file must remain ' +
+          'accessible during this period.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 16. FRAUD INDICATOR RESPONSE
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'fraud_indicator',
+    title: 'Fraud Indicator Response',
+    description:
+      'Process for identifying, documenting, and reporting suspected workers\' ' +
+      'compensation fraud indicators. Covers factual documentation and SIU ' +
+      'referral — not legal determinations of fraud.',
+    uplZone: 'GREEN',
+    authority: 'Ins. Code 1871; Ins. Code 1877',
+    featureContext: 'INVESTIGATION' as FeatureContext,
+    estimatedMinutes: 12,
+    steps: [
+      {
+        id: 'fraud_step_1',
+        title: 'Identify fraud indicators',
+        description:
+          'Recognize factual indicators of potential fraud: inconsistent injury ' +
+          'descriptions, delayed reporting, Monday morning claims, prior claim ' +
+          'history, surveillance contradictions, or provider billing anomalies.',
+        authority: 'Ins. Code 1871.4',
+        complianceNote:
+          'Fraud indicators are factual observations, not legal conclusions. ' +
+          'Document what you observe, not what you conclude.',
+        isSkippable: false,
+      },
+      {
+        id: 'fraud_step_2',
+        title: 'Document factual basis',
+        description:
+          'Create a detailed factual summary of the fraud indicators. Include ' +
+          'dates, sources, specific inconsistencies, and supporting documents. ' +
+          'Use objective language — facts only, no conclusions.',
+        authority: 'Ins. Code 1871',
+        complianceNote:
+          'The factual summary is the basis for SIU evaluation. Objective ' +
+          'documentation protects both the carrier and the claimant.',
+        isSkippable: false,
+      },
+      {
+        id: 'fraud_step_3',
+        title: 'Report to Special Investigations Unit',
+        description:
+          'Refer the claim to the carrier\'s Special Investigations Unit (SIU) ' +
+          'with the factual summary and supporting documents. SIU determines ' +
+          'whether to investigate further or refer to the District Attorney.',
+        authority: 'Ins. Code 1877.3',
+        complianceNote:
+          'Carriers are required to have an SIU. Failure to refer known fraud ' +
+          'indicators is itself a compliance issue.',
+        isSkippable: false,
+      },
+      {
+        id: 'fraud_step_4',
+        title: 'Preserve evidence',
+        description:
+          'Preserve all evidence related to the fraud indicators: medical records, ' +
+          'surveillance footage, statements, billing records, and investigation ' +
+          'notes. Do not alter or destroy any evidence.',
+        authority: 'Ins. Code 1871; evidence preservation standards',
+        complianceNote:
+          'Evidence preservation is critical. Spoliation of evidence can result ' +
+          'in adverse inferences and separate liability.',
+        isSkippable: false,
+      },
+      {
+        id: 'fraud_step_5',
+        title: 'Coordinate with SIU investigation',
+        description:
+          'Cooperate with SIU investigation activities: provide requested ' +
+          'documents, coordinate surveillance if authorized, and continue ' +
+          'normal claims handling pending investigation outcome.',
+        authority: 'Ins. Code 1877.3',
+        complianceNote:
+          'Continue normal claims handling during investigation. A fraud ' +
+          'referral does not authorize benefit withholding or claim denial ' +
+          'without independent grounds.',
+        isSkippable: false,
+      },
+      {
+        id: 'fraud_step_6',
+        title: 'Document investigation outcome',
+        description:
+          'Record the SIU investigation outcome in the claim file: confirmed ' +
+          'fraud referral to DA, unfounded indicators, or inconclusive. Adjust ' +
+          'claims handling based on the outcome.',
+        authority: 'Ins. Code 1871; 10 CCR 2695.5(b)',
+        complianceNote:
+          'Complete documentation of the fraud investigation process is required ' +
+          'regardless of outcome.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 17. SUBROGATION IDENTIFICATION
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'subrogation_referral',
+    title: 'Subrogation Identification',
+    description:
+      'Process for identifying third-party liability, calculating recovery ' +
+      'potential, and referring for subrogation recovery. Recoveries offset ' +
+      'claim costs and reduce the carrier\'s net exposure.',
+    uplZone: 'GREEN',
+    authority: 'LC 3851; LC 3852; LC 3853; LC 3856; LC 3857',
+    featureContext: 'INVESTIGATION' as FeatureContext,
+    estimatedMinutes: 10,
+    steps: [
+      {
+        id: 'subro_step_1',
+        title: 'Identify third-party involvement',
+        description:
+          'Determine if a third party (not the employer or co-employee) caused ' +
+          'or contributed to the injury. Common scenarios: motor vehicle accidents, ' +
+          'defective products, premises liability, or negligent third-party ' +
+          'contractors.',
+        authority: 'LC 3852',
+        complianceNote:
+          'Third-party identification should occur during the initial investigation. ' +
+          'Delayed identification can prejudice recovery rights.',
+        isSkippable: false,
+      },
+      {
+        id: 'subro_step_2',
+        title: 'Gather facts supporting third-party liability',
+        description:
+          'Collect evidence of third-party fault: police reports, witness statements, ' +
+          'incident reports, product identification, and photographs. Document the ' +
+          'factual basis for potential third-party liability.',
+        authority: 'LC 3853',
+        complianceNote:
+          'Early evidence gathering preserves recovery potential. Physical evidence ' +
+          'and witness availability diminish over time.',
+        isSkippable: false,
+      },
+      {
+        id: 'subro_step_3',
+        title: 'Calculate recovery potential',
+        description:
+          'Estimate the total claim cost that may be recoverable through subrogation. ' +
+          'Include paid and reserved amounts for indemnity, medical, and legal ' +
+          'expenses. The recovery credit under LC 3856 offsets future claim costs.',
+        authority: 'LC 3856; LC 3857',
+        complianceNote:
+          'Accurate recovery estimates affect reserve adequacy and settlement ' +
+          'calculations. Include all recoverable categories.',
+        isSkippable: false,
+      },
+      {
+        id: 'subro_step_4',
+        title: 'Refer to subrogation counsel',
+        description:
+          'Refer the subrogation claim to the carrier\'s subrogation counsel or ' +
+          'recovery vendor. Provide the factual summary, evidence package, and ' +
+          'claim financial data. Note any statute of limitations deadlines.',
+        authority: 'LC 3852; LC 3853',
+        complianceNote:
+          'Subrogation actions have their own statutes of limitation separate ' +
+          'from the WC claim. Timely referral is essential.',
+        isSkippable: false,
+      },
+      {
+        id: 'subro_step_5',
+        title: 'Track recovery and credit against claim',
+        description:
+          'Monitor the subrogation action for recovery. When funds are recovered, ' +
+          'apply the credit against claim costs per LC 3856. Update reserves ' +
+          'to reflect the net exposure after recovery.',
+        authority: 'LC 3856; LC 3857',
+        complianceNote:
+          'Subrogation recoveries reduce the carrier\'s net claim cost. Properly ' +
+          'crediting recoveries is required for accurate claim financials.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 18. CUMULATIVE TRAUMA HANDLING
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'cumulative_trauma',
+    title: 'Cumulative Trauma Handling',
+    description:
+      'Process for handling cumulative trauma (CT) claims involving injury ' +
+      'from repetitive exposures over time. CT claims involve multiple ' +
+      'employers, complex apportionment, and last injurious exposure rules.',
+    uplZone: 'GREEN',
+    authority: 'LC 5500.5; LC 5412; LC 5303',
+    featureContext: 'CLAIM_INTAKE' as FeatureContext,
+    estimatedMinutes: 15,
+    steps: [
+      {
+        id: 'ct_step_1',
+        title: 'Identify cumulative trauma indicators',
+        description:
+          'Recognize CT indicators: gradual onset symptoms, repetitive job duties, ' +
+          'multiple body parts, long employment tenure, and medical reports citing ' +
+          'cumulative exposure as a contributing cause.',
+        authority: 'LC 5412',
+        complianceNote:
+          'CT claims require different handling than specific injury claims. ' +
+          'Early identification prevents investigation gaps.',
+        isSkippable: false,
+      },
+      {
+        id: 'ct_step_2',
+        title: 'Determine last injurious exposure',
+        description:
+          'Identify the date of last injurious exposure — the last date the ' +
+          'employee was exposed to the cumulative hazard. Under LC 5500.5, ' +
+          'the employer (and insurer) on the date of last injurious exposure ' +
+          'bears initial liability.',
+        authority: 'LC 5500.5',
+        complianceNote:
+          'The last injurious exposure date determines which employer/insurer ' +
+          'is primarily liable. This is a factual determination based on ' +
+          'employment and exposure records.',
+        isSkippable: false,
+      },
+      {
+        id: 'ct_step_3',
+        title: 'Identify all employers during exposure period',
+        description:
+          'Determine the full employment history during the CT exposure period. ' +
+          'Identify all employers and their workers\' compensation carriers for ' +
+          'potential contribution and apportionment.',
+        authority: 'LC 5500.5; LC 5303',
+        complianceNote:
+          'All employers during the exposure period are potential co-defendants. ' +
+          'Accurate employment history is essential for apportionment.',
+        isSkippable: false,
+      },
+      {
+        id: 'ct_step_4',
+        title: 'Investigate exposure periods',
+        description:
+          'Document the specific exposures at each employer: job duties, ' +
+          'workplace conditions, duration of employment, and any protective ' +
+          'measures or lack thereof. This supports apportionment analysis.',
+        authority: 'LC 5500.5; LC 5412',
+        complianceNote:
+          'Exposure documentation is the foundation for apportionment among ' +
+          'co-defendants. Thorough investigation protects the carrier\'s position.',
+        isSkippable: false,
+      },
+      {
+        id: 'ct_step_5',
+        title: 'Coordinate with co-defendants',
+        description:
+          'Notify other carriers of their potential liability. Share relevant ' +
+          'employment and exposure information. Coordinate defense strategy ' +
+          'and apportionment positions where interests align.',
+        authority: 'LC 5500.5',
+        complianceNote:
+          'Coordination with co-defendants can reduce litigation costs and ' +
+          'facilitate equitable apportionment among carriers.',
+        isSkippable: false,
+      },
+      {
+        id: 'ct_step_6',
+        title: 'Calculate apportionment exposure',
+        description:
+          'Estimate the carrier\'s share of liability based on the exposure ' +
+          'period covered by the policy. Use employment duration, exposure ' +
+          'intensity, and QME/AME apportionment opinions to estimate the ' +
+          'carrier\'s proportional share.',
+        authority: 'LC 4663; LC 4664',
+        complianceNote:
+          'Apportionment in CT claims is complex and often disputed. Reserve ' +
+          'based on realistic exposure share, not best-case scenarios.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 19. DEATH BENEFIT PROCESSING
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'death_benefit',
+    title: 'Death Benefit Processing',
+    description:
+      'Process for handling death claims including verification, dependent ' +
+      'identification, benefit calculation, and burial benefit coordination. ' +
+      'Death claims require immediate attention and defense counsel involvement.',
+    uplZone: 'GREEN',
+    authority: 'LC 4700; LC 4701; LC 4702; LC 4703; LC 4706',
+    featureContext: 'BENEFIT_CALCULATION' as FeatureContext,
+    estimatedMinutes: 15,
+    steps: [
+      {
+        id: 'death_step_1',
+        title: 'Verify death and work-relatedness',
+        description:
+          'Obtain the death certificate and verify that the death is causally ' +
+          'related to the industrial injury or occupational disease. Review ' +
+          'medical records establishing the causal chain from injury to death.',
+        authority: 'LC 4700',
+        complianceNote:
+          'Causation between the industrial injury and death must be established. ' +
+          'This is a medical determination supported by physician opinions.',
+        isSkippable: false,
+      },
+      {
+        id: 'death_step_2',
+        title: 'Identify dependents',
+        description:
+          'Identify all total and partial dependents as defined under LC 4702. ' +
+          'Total dependents include spouse, minor children, and certain other ' +
+          'household members. Partial dependents receive benefits proportional ' +
+          'to their dependency.',
+        authority: 'LC 4702; LC 4703',
+        complianceNote:
+          'Dependent status is defined by statute. Verify each claimed dependent ' +
+          'against the LC 4702 criteria with supporting documentation.',
+        isSkippable: false,
+      },
+      {
+        id: 'death_step_3',
+        title: 'Calculate death benefit amount',
+        description:
+          'Calculate the total death benefit based on the number and type of ' +
+          'dependents under LC 4702. The maximum death benefit and payment ' +
+          'schedule vary by number of total dependents and date of injury.',
+        authority: 'LC 4702; LC 4703',
+        complianceNote:
+          'Death benefit amounts are statutory and vary by date of injury and ' +
+          'number of dependents. Use the correct schedule for the DOI date.',
+        isSkippable: false,
+      },
+      {
+        id: 'death_step_4',
+        title: 'Initiate death benefit payments',
+        description:
+          'Begin death benefit payments to identified dependents. Payments are ' +
+          'made at the TD rate applicable at the time of injury. Ensure payments ' +
+          'are initiated promptly — LC 4650 timeliness requirements apply.',
+        authority: 'LC 4700; LC 4702; LC 4650',
+        complianceNote:
+          'Death benefit payments are subject to the same timeliness requirements ' +
+          'as other indemnity benefits. Late payment penalties apply.',
+        isSkippable: false,
+      },
+      {
+        id: 'death_step_5',
+        title: 'Coordinate burial benefit',
+        description:
+          'Process the burial allowance under LC 4701. The burial benefit is ' +
+          'a separate, one-time payment in addition to death benefits. Verify ' +
+          'the applicable amount based on the date of injury.',
+        authority: 'LC 4701',
+        complianceNote:
+          'The burial benefit is statutory and must be paid regardless of the ' +
+          'death benefit determination. Process promptly upon verification of death.',
+        isSkippable: false,
+      },
+      {
+        id: 'death_step_6',
+        title: 'Document and assign defense counsel',
+        description:
+          'Document all death benefit determinations and payments in the claim ' +
+          'file. Assign defense counsel immediately — death claims invariably ' +
+          'involve litigation and require legal representation from the outset.',
+        authority: 'LC 4706; Ins. Code 790.03(h)(6)',
+        complianceNote:
+          'Death claims are high-exposure, high-complexity claims that require ' +
+          'defense counsel involvement from day one.',
+        isSkippable: false,
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 20. PENALTY SELF-ASSESSMENT (LC 4650(c))
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    id: 'penalty_self_assessment',
+    title: 'Penalty Self-Assessment (LC 4650(c))',
+    description:
+      'Process for identifying late benefit payments, calculating the 10% ' +
+      'self-imposed penalty under LC 4650(c), and ensuring timely payment. ' +
+      'Self-assessment demonstrates good faith compliance.',
+    uplZone: 'GREEN',
+    authority: 'LC 4650(c); LC 4650(d)',
+    featureContext: 'BENEFIT_CALCULATION' as FeatureContext,
+    estimatedMinutes: 8,
+    steps: [
+      {
+        id: 'penalty_step_1',
+        title: 'Identify late benefit payments',
+        description:
+          'Review all benefit payment dates against regulatory deadlines. ' +
+          'Identify any TD, PD, or other indemnity payments that were not made ' +
+          'within the required timeframes under LC 4650.',
+        authority: 'LC 4650',
+        complianceNote:
+          'LC 4650 requires first TD payment within 14 days of employer ' +
+          'knowledge. Subsequent payments are due every 14 days.',
+        isSkippable: false,
+      },
+      {
+        id: 'penalty_step_2',
+        title: 'Calculate 10% self-imposed penalty',
+        description:
+          'For each late payment, calculate the 10% penalty on the late amount ' +
+          'under LC 4650(d). The penalty is 10% of the payment amount that was ' +
+          'unreasonably delayed.',
+        authority: 'LC 4650(d)',
+        complianceNote:
+          'The 10% penalty is automatic for unreasonable delay. Self-assessment ' +
+          'and voluntary payment demonstrates good faith.',
+        isSkippable: false,
+      },
+      {
+        id: 'penalty_step_3',
+        title: 'Self-impose penalty',
+        description:
+          'Approve the self-imposed penalty amount. Document the specific ' +
+          'payment(s) that were late, the number of days late, and the penalty ' +
+          'calculation. Record the reason for the delay.',
+        authority: 'LC 4650(c); LC 4650(d)',
+        complianceNote:
+          'Documenting the delay reason is important — some delays may be ' +
+          'excusable. However, self-impose the penalty proactively to ' +
+          'demonstrate good faith.',
+        isSkippable: false,
+      },
+      {
+        id: 'penalty_step_4',
+        title: 'Pay penalty with next benefit payment',
+        description:
+          'Include the self-imposed penalty amount with the next scheduled ' +
+          'benefit payment. Clearly identify the penalty payment as separate ' +
+          'from the benefit payment on the payment record.',
+        authority: 'LC 4650(d)',
+        complianceNote:
+          'Prompt penalty payment reduces the risk of additional penalties or ' +
+          'sanctions at the WCAB.',
+        isSkippable: false,
+      },
+      {
+        id: 'penalty_step_5',
+        title: 'Document in claim file',
+        description:
+          'Record the self-assessment in the claim file: late payment identified, ' +
+          'penalty calculated, penalty paid, and corrective action to prevent ' +
+          'recurrence. This documentation supports DOI audit compliance.',
+        authority: 'LC 4650; 10 CCR 2695.5(b)',
+        complianceNote:
+          'Self-assessment documentation is evidence of good faith compliance. ' +
+          'DOI auditors view self-correction favorably.',
+        isSkippable: false,
+      },
+      {
+        id: 'penalty_step_6',
+        title: 'Report to supervisor',
+        description:
+          'Notify your supervisor of the late payment and self-imposed penalty. ' +
+          'Discuss the root cause and any systemic issues that may affect other ' +
+          'claims. Implement corrective measures as needed.',
+        authority: 'Carrier compliance guidelines',
+        complianceNote:
+          'Supervisory awareness enables identification of systemic issues ' +
+          'that may require process improvements across the team.',
         isSkippable: false,
       },
     ],

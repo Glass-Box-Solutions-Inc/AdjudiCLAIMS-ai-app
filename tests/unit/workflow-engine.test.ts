@@ -222,12 +222,12 @@ describe('Workflow Engine Service', () => {
   });
 
   describe('getAllWorkflows', () => {
-    it('returns all 5 workflow summaries', async () => {
+    it('returns all 20 workflow summaries', async () => {
       const { getAllWorkflows } = await import('../../server/services/workflow-engine.service.js');
 
       const workflows = getAllWorkflows();
 
-      expect(workflows).toHaveLength(5);
+      expect(workflows).toHaveLength(20);
       for (const w of workflows) {
         expect(w.id).toBeTruthy();
         expect(w.title).toBeTruthy();
@@ -428,7 +428,7 @@ describe('Workflow Routes', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body) as { workflows: unknown[] };
       expect(Array.isArray(body.workflows)).toBe(true);
-      expect(body.workflows.length).toBe(5);
+      expect(body.workflows.length).toBe(20);
     });
 
     it('returns 401 when not authenticated', async () => {
