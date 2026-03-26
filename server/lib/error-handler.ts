@@ -6,6 +6,7 @@
  */
 
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+import { Sentry } from './instrumentation.js';
 import { AppError, ValidationError } from './errors.js';
 
 interface ErrorResponse {
@@ -89,7 +90,16 @@ export function registerErrorHandler(server: {
         return;
       }
 
-      // --- Unknown / unhandled errors ---
+      // --- Unknown / unhandled errors — report to Sentry ---
+      Sentry.captureException(error, {
+        tags: { component: 'error-handler' },
+        extra: {
+          url: request.url,
+          method: request.method,
+          statusCode: 'statusCode' in error ? (error as { statusCode?: number }).statusCode : 500,
+        },
+      });
+
       const statusCode =
         'statusCode' in error ? ((error as { statusCode?: number }).statusCode ?? 500) : 500;
       void reply.code(statusCode).send({

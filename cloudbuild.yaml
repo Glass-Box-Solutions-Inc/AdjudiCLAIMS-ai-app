@@ -1,0 +1,149 @@
+# =============================================================================
+# AdjudiCLAIMS Cloud Build — CI/CD Pipeline
+# =============================================================================
+# Deploys: API server + document worker + LLM worker to Cloud Run
+# Trigger: Push to main branch
+# Project: adjudiclaims-prod (production) or adjudiclaims-staging (staging)
+# =============================================================================
+
+substitutions:
+  _REGION: us-west1
+  _ARTIFACT_REGISTRY: us-west1-docker.pkg.dev/${PROJECT_ID}/adjudiclaims
+  _SERVICE_NAME: adjudiclaims-api
+  _WORKER_DOC_SERVICE: adjudiclaims-worker-document
+  _WORKER_LLM_SERVICE: adjudiclaims-worker-llm
+
+steps:
+  # ---- Step 1: Install dependencies ----
+  - name: 'node:20-slim'
+    entrypoint: npm
+    args: ['ci', '--legacy-peer-deps', '--ignore-scripts']
+    id: install
+
+  # ---- Step 2: Generate Prisma client ----
+  - name: 'node:20-slim'
+    entrypoint: npx
+    args: ['prisma', 'generate']
+    id: prisma
+    waitFor: ['install']
+
+  # ---- Step 3: Typecheck ----
+  - name: 'node:20-slim'
+    entrypoint: npm
+    args: ['run', 'typecheck']
+    id: typecheck
+    waitFor: ['prisma']
+
+  # ---- Step 4: Unit tests ----
+  - name: 'node:20-slim'
+    entrypoint: npm
+    args: ['run', 'test']
+    id: test
+    waitFor: ['prisma']
+    env:
+      - 'NODE_ENV=test'
+
+  # ---- Step 5: UPL compliance tests ----
+  - name: 'node:20-slim'
+    entrypoint: npm
+    args: ['run', 'test:upl']
+    id: test-upl
+    waitFor: ['prisma']
+    env:
+      - 'NODE_ENV=test'
+
+  # ---- Step 6: Build Docker image ----
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg=SENTRY_RELEASE=${SHORT_SHA}'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY}/${_SERVICE_NAME}:latest'
+      - '.'
+    id: docker-build
+    waitFor: ['typecheck', 'test', 'test-upl']
+
+  # ---- Step 7: Push to Artifact Registry ----
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', '${_ARTIFACT_REGISTRY}/${_SERVICE_NAME}']
+    id: docker-push
+    waitFor: ['docker-build']
+
+  # ---- Step 8: Deploy API server to Cloud Run ----
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--port=4901'
+      - '--min-instances=1'
+      - '--max-instances=10'
+      - '--memory=1Gi'
+      - '--cpu=1'
+      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SESSION_SECRET=adjudiclaims-session-secret:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
+      - '--set-env-vars=NODE_ENV=production,PORT=4901,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${SHORT_SHA}'
+    id: deploy-api
+    waitFor: ['docker-push']
+
+  # ---- Step 9: Deploy document worker to Cloud Run ----
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_WORKER_DOC_SERVICE}'
+      - '--image=${_ARTIFACT_REGISTRY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--min-instances=1'
+      - '--max-instances=5'
+      - '--memory=2Gi'
+      - '--cpu=1'
+      - '--no-cpu-throttling'
+      - '--command=npx'
+      - '--args=tsx,server/temporal/document/worker.ts'
+      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
+      - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${SHORT_SHA}'
+    id: deploy-worker-document
+    waitFor: ['docker-push']
+
+  # ---- Step 10: Deploy LLM worker to Cloud Run ----
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_WORKER_LLM_SERVICE}'
+      - '--image=${_ARTIFACT_REGISTRY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--min-instances=1'
+      - '--max-instances=5'
+      - '--memory=1Gi'
+      - '--cpu=1'
+      - '--no-cpu-throttling'
+      - '--command=npx'
+      - '--args=tsx,server/temporal/llm/worker.ts'
+      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
+      - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${SHORT_SHA}'
+    id: deploy-worker-llm
+    waitFor: ['docker-push']
+
+  # ---- Step 11: Run database migrations ----
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        gcloud run jobs execute adjudiclaims-migrate \
+          --region=${_REGION} \
+          --wait
+    id: migrate
+    waitFor: ['deploy-api']
+
+timeout: 1200s
+options:
+  logging: CLOUD_LOGGING_ONLY
