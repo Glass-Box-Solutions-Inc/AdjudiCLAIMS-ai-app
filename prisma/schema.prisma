@@ -440,17 +440,50 @@ model Document {
 
 /// Text chunk for RAG retrieval against claim documents.
 /// Embeddings stored externally in Vertex AI Vector Search (Voyage Large model).
+///
+/// Chunking upgrades (2026-03-27):
+///   - Token-based sizing (512 tokens target)
+///   - 3-level heading structure (L1 document, L2 section, L3 topic)
+///   - Parent-child indexing (parents for LLM context, children for retrieval)
+///   - Atomic preservation flags (tables, procedures, continuations)
+///   - Contextual prefix for embedding quality
 model DocumentChunk {
   id         String @id @default(cuid()) @map("id")
   documentId String @map("document_id")
   content    String @map("content") @db.LongText
   chunkIndex Int    @map("chunk_index")
 
+  // 3-level heading structure
+  headingL1 String? @map("heading_l1") @db.Text
+  headingL2 String? @map("heading_l2") @db.Text
+  headingL3 String? @map("heading_l3") @db.Text
+
+  // Atomic preservation flags
+  pageNumbers       Json?   @map("page_numbers")
+  isContinuation    Boolean @default(false) @map("is_continuation")
+  hasContinuation   Boolean @default(false) @map("has_continuation")
+  containsTable     Boolean @default(false) @map("contains_table")
+  containsProcedure Boolean @default(false) @map("contains_procedure")
+
+  // Parent-child indexing
+  parentChunkId String?  @map("parent_chunk_id")
+  isParent      Boolean  @default(false) @map("is_parent")
+
+  // Contextual prefix (included in embedding, excluded from LLM generation)
+  contextPrefix String? @map("context_prefix") @db.Text
+
+  // Token-based metadata
+  tokenCount Int? @map("token_count")
+
   // Relations
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document    Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parentChunk DocumentChunk? @relation("ChunkParent", fields: [parentChunkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childChunks DocumentChunk[] @relation("ChunkParent")
 
   @@index([documentId], map: "idx_document_chunks_document_id")
   @@index([documentId, chunkIndex], map: "idx_document_chunks_doc_chunk_idx")
+  @@index([parentChunkId], map: "idx_document_chunks_parent_id")
+  @@index([documentId, isParent], map: "idx_document_chunks_doc_is_parent")
   @@map("document_chunks")
 }
 

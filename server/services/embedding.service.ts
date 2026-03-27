@@ -12,21 +12,44 @@
  * in local development.
  */
 
+import { encode } from 'gpt-tokenizer';
 import { prisma } from '../db.js';
 import { upsertEmbeddings, removeEmbeddings, queryEmbeddings } from './vector-search.service.js';
+import { generateHeadings, type DocumentContext } from './chunk-headings.service.js';
+import { detectAtomicBlocks, assignChunkFlags } from './chunk-atomic.service.js';
+
+// ---------------------------------------------------------------------------
+// Token counting
+// ---------------------------------------------------------------------------
+
+/** Count tokens using cl100k_base encoding (compatible with Voyage/OpenAI). */
+export function countTokens(text: string): number {
+  return encode(text).length;
+}
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Target chunk size in characters (~500 tokens at ~4 chars/token). */
-const MIN_CHUNK_CHARS = 2000;
+/** Target chunk size in tokens. */
+const TARGET_CHUNK_TOKENS = 512;
 
-/** Maximum chunk size in characters (~1000 tokens at ~4 chars/token). */
-const MAX_CHUNK_CHARS = 4000;
+/** Maximum chunk size in tokens (small buffer for heading prepend). */
+const MAX_CHUNK_TOKENS = 600;
 
-/** Overlap between consecutive chunks in characters (~100 tokens). */
-const OVERLAP_CHARS = 400;
+/** Overlap between consecutive chunks in tokens. */
+const OVERLAP_TOKENS = 60;
+
+/** Legal-aware separators ordered from strongest to weakest boundary. */
+const LEGAL_SEPARATORS = [
+  '\n\n\n',     // Major section breaks
+  '\n\n',       // Paragraph breaks
+  '\n',         // Line breaks
+  '. ',         // Sentence boundaries
+  '; ',         // Clause boundaries
+  ', ',         // Phrase boundaries
+  ' ',          // Word boundaries
+];
 
 /**
  * Voyage Large embedding model identifier.
@@ -39,6 +62,9 @@ const EMBEDDING_DIMENSIONS = 1024;
 
 /** Maximum texts per single Voyage API call. */
 const VOYAGE_BATCH_SIZE = 128;
+
+/** Target parent chunk size in tokens (broader context for LLM). */
+const PARENT_CHUNK_TOKENS = 2048;
 
 /** Default number of results for similarity search. */
 const DEFAULT_TOP_K = 5;
@@ -65,8 +91,12 @@ export interface SearchResult {
   chunkId: string;
   /** ID of the parent document this chunk belongs to. */
   documentId: string;
-  /** The text content of the chunk. */
+  /** The text content of the chunk (child content for precise matching). */
   content: string;
+  /** Parent chunk content for broader LLM context (null if no parent). */
+  parentContent: string | null;
+  /** 3-level heading breadcrumb for source attribution. */
+  headingBreadcrumb: string | null;
   /** Cosine similarity score (0-1, higher = more relevant). */
   similarity: number;
 }
@@ -184,72 +214,102 @@ async function generateQueryEmbedding(query: string): Promise<number[] | null> {
 // ---------------------------------------------------------------------------
 
 /**
- * Split text into overlapping chunks, preferring paragraph then sentence
- * boundaries.
+ * Split text into overlapping token-based chunks, respecting legal document
+ * structure by preferring the strongest available separator.
  *
- * Strategy:
- *   1. Split on paragraph boundaries (double newline).
- *   2. Accumulate paragraphs until the chunk reaches MIN_CHUNK_CHARS.
- *   3. If a single paragraph exceeds MAX_CHUNK_CHARS, split it on sentence
- *      boundaries (". ") and accumulate sentences instead.
- *   4. Apply OVERLAP_CHARS of trailing text from the previous chunk as a
- *      prefix to the next chunk.
+ * Strategy (recursive):
+ *   1. If text fits in TARGET_CHUNK_TOKENS, return it as a single chunk.
+ *   2. Try splitting on the strongest separator that produces segments.
+ *   3. Accumulate segments until reaching TARGET_CHUNK_TOKENS.
+ *   4. When a segment would exceed MAX_CHUNK_TOKENS, flush the current chunk
+ *      and start a new one with OVERLAP_TOKENS of trailing text.
+ *   5. If no separator works, fall back to word-level splitting.
  */
 export function chunkText(text: string): string[] {
   if (!text.trim()) {
     return [];
   }
 
-  const paragraphs = text.split(/\n\s*\n/);
+  if (countTokens(text) <= TARGET_CHUNK_TOKENS) {
+    return [text];
+  }
+
+  return recursiveChunk(text);
+}
+
+/**
+ * Recursive token-based chunking implementation.
+ * Tries each legal separator in order from strongest to weakest, then
+ * falls back to word-level splitting.
+ */
+function recursiveChunk(text: string): string[] {
+  const textTokens = countTokens(text);
+
+  // Base case: text fits in a single chunk.
+  if (textTokens <= TARGET_CHUNK_TOKENS) {
+    return text.trim() ? [text] : [];
+  }
+
+  // Try each separator in order of strength.
+  for (const separator of LEGAL_SEPARATORS) {
+    const segments = text.split(separator);
+    if (segments.length <= 1) {
+      continue; // This separator doesn't split the text.
+    }
+
+    // Accumulate segments into chunks.
+    return accumulateSegments(segments, separator);
+  }
+
+  // Last resort: no separators worked, force-split by words.
+  return forceWordSplit(text);
+}
+
+/**
+ * Accumulate text segments into chunks of approximately TARGET_CHUNK_TOKENS,
+ * adding OVERLAP_TOKENS of trailing context between consecutive chunks.
+ */
+function accumulateSegments(segments: string[], separator: string): string[] {
   const chunks: string[] = [];
   let currentChunk = '';
-  let overlapPrefix = '';
 
-  for (const paragraph of paragraphs) {
-    const trimmed = paragraph.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    // If a single paragraph is larger than MAX_CHUNK_CHARS, break it into
-    // sentence-level fragments and process each as if it were a paragraph.
-    if (trimmed.length > MAX_CHUNK_CHARS) {
-      const sentences = splitSentences(trimmed);
-      for (const sentence of sentences) {
-        const candidate = currentChunk
-          ? currentChunk + ' ' + sentence
-          : overlapPrefix + sentence;
-
-        if (candidate.length > MAX_CHUNK_CHARS && currentChunk.length >= MIN_CHUNK_CHARS) {
-          chunks.push(currentChunk);
-          overlapPrefix = currentChunk.slice(-OVERLAP_CHARS);
-          currentChunk = overlapPrefix + sentence;
-        } else if (candidate.length > MAX_CHUNK_CHARS && currentChunk.length < MIN_CHUNK_CHARS) {
-          if (currentChunk) {
-            chunks.push(currentChunk);
-            overlapPrefix = currentChunk.slice(-OVERLAP_CHARS);
-          }
-          currentChunk = overlapPrefix + sentence;
-          if (currentChunk.length > MAX_CHUNK_CHARS) {
-            chunks.push(currentChunk);
-            overlapPrefix = currentChunk.slice(-OVERLAP_CHARS);
-            currentChunk = '';
-          }
-        } else {
-          currentChunk = candidate;
-        }
-      }
-      continue;
-    }
+  for (const segment of segments) {
+    if (!segment) continue;
 
     const candidate = currentChunk
-      ? currentChunk + '\n\n' + trimmed
-      : overlapPrefix + trimmed;
+      ? currentChunk + separator + segment
+      : segment;
 
-    if (candidate.length > MAX_CHUNK_CHARS && currentChunk.length >= MIN_CHUNK_CHARS) {
-      chunks.push(currentChunk);
-      overlapPrefix = currentChunk.slice(-OVERLAP_CHARS);
-      currentChunk = overlapPrefix + trimmed;
+    const candidateTokens = countTokens(candidate);
+
+    if (candidateTokens > MAX_CHUNK_TOKENS) {
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk);
+      }
+
+      // Build overlap from the end of the previous chunk.
+      const overlap = getTrailingOverlap(currentChunk);
+
+      // If the segment itself is too large, recurse into it.
+      const segmentWithOverlap = overlap ? overlap + separator + segment : segment;
+      if (countTokens(segmentWithOverlap) > MAX_CHUNK_TOKENS) {
+        // Recurse: the segment (possibly with overlap) needs further splitting.
+        const subChunks = recursiveChunk(segment);
+        if (subChunks.length > 0) {
+          // Prepend overlap to the first sub-chunk if it fits.
+          if (overlap) {
+            const firstWithOverlap = overlap + separator + subChunks[0]!;
+            if (countTokens(firstWithOverlap) <= MAX_CHUNK_TOKENS) {
+              subChunks[0] = firstWithOverlap;
+            }
+          }
+          chunks.push(...subChunks);
+          // Set currentChunk to empty; the last sub-chunk serves as context.
+          currentChunk = '';
+        }
+      } else {
+        currentChunk = segmentWithOverlap;
+      }
     } else {
       currentChunk = candidate;
     }
@@ -257,6 +317,75 @@ export function chunkText(text: string): string[] {
 
   if (currentChunk.trim()) {
     chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
+
+/**
+ * Extract trailing text from a chunk that is approximately OVERLAP_TOKENS long.
+ * Splits on word boundaries to avoid cutting mid-word.
+ */
+function getTrailingOverlap(text: string): string {
+  if (!text) return '';
+
+  const words = text.split(/\s+/);
+  let overlap = '';
+
+  // Build from the end, word by word.
+  for (let i = words.length - 1; i >= 0; i--) {
+    const candidate = i < words.length - 1
+      ? words[i]! + ' ' + overlap
+      : words[i]!;
+    if (countTokens(candidate) > OVERLAP_TOKENS) {
+      break;
+    }
+    overlap = candidate;
+  }
+
+  return overlap;
+}
+
+/**
+ * Force-split text by words when no structural separator is available.
+ * Produces chunks of approximately TARGET_CHUNK_TOKENS with word-boundary
+ * overlap between them.
+ */
+function forceWordSplit(text: string): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const chunks: string[] = [];
+  let currentWords: string[] = [];
+  let currentTokens = 0;
+
+  for (const word of words) {
+    const wordTokens = countTokens(word);
+    const spaceToken = currentWords.length > 0 ? 1 : 0;
+
+    if (currentTokens + wordTokens + spaceToken > TARGET_CHUNK_TOKENS && currentWords.length > 0) {
+      chunks.push(currentWords.join(' '));
+
+      // Start new chunk with overlap from the tail of the current words.
+      const overlapWords: string[] = [];
+      let overlapTokenCount = 0;
+      for (let i = currentWords.length - 1; i >= 0; i--) {
+        const wt = countTokens(currentWords[i]!);
+        if (overlapTokenCount + wt + (overlapWords.length > 0 ? 1 : 0) > OVERLAP_TOKENS) {
+          break;
+        }
+        overlapWords.unshift(currentWords[i]!);
+        overlapTokenCount += wt + (overlapWords.length > 1 ? 1 : 0);
+      }
+
+      currentWords = [...overlapWords, word];
+      currentTokens = countTokens(currentWords.join(' '));
+    } else {
+      currentWords.push(word);
+      currentTokens += wordTokens + spaceToken;
+    }
+  }
+
+  if (currentWords.length > 0) {
+    chunks.push(currentWords.join(' '));
   }
 
   return chunks;
@@ -285,19 +414,32 @@ function splitSentences(text: string): string[] {
 /**
  * Chunk a document's extracted text and generate vector embeddings.
  *
- * 1. Reads the document's extractedText from the database.
- * 2. Splits into overlapping chunks.
- * 3. Generates embeddings via Voyage Large (or skips if not configured).
- * 4. Stores chunks in PlanetScale (text only, no embedding column).
- * 5. Upserts embedding vectors to Vertex AI Vector Search index.
+ * Full pipeline (6 upgrades integrated):
+ *   1. Reads the document's extractedText + classification metadata.
+ *   2. Detects atomic blocks (tables, numbered steps, legal citations).
+ *   3. Two-pass chunking: parent chunks (2048 tokens) + child chunks (512 tokens).
+ *   4. Generates 3-level headings (L1 document, L2 section, L3 topic).
+ *   5. Builds contextual prefix from headings for embedding quality.
+ *   6. Embeds child chunks only (parents stored for LLM context, not indexed).
+ *   7. Stores all chunks with metadata in PlanetScale.
+ *   8. Upserts child embedding vectors to Vertex AI Vector Search.
  *
  * @param documentId - ID of the document to chunk and embed.
- * @returns Number of chunks created.
+ * @returns Number of child chunks created (excludes parent chunks).
  */
 export async function chunkAndEmbed(documentId: string): Promise<number> {
   const document = await prisma.document.findUnique({
     where: { id: documentId },
-    select: { id: true, extractedText: true },
+    select: {
+      id: true,
+      extractedText: true,
+      documentType: true,
+      documentSubtype: true,
+      fileName: true,
+      extractedFields: {
+        select: { fieldName: true, fieldValue: true },
+      },
+    },
   });
 
   if (!document) {
@@ -308,39 +450,70 @@ export async function chunkAndEmbed(documentId: string): Promise<number> {
     return 0;
   }
 
-  const chunks = chunkText(document.extractedText);
-  if (chunks.length === 0) {
+  const text = document.extractedText;
+
+  // --- Step 1: Detect atomic blocks ---
+  const atomicBlocks = detectAtomicBlocks(text);
+
+  // --- Step 2: Two-pass chunking (parent + child) ---
+  const parentChunks = chunkTextWithTarget(text, PARENT_CHUNK_TOKENS);
+  const childChunks = chunkText(text);
+
+  if (childChunks.length === 0) {
     return 0;
   }
 
-  // Generate embeddings (returns null when Voyage AI is not configured).
-  const embeddings = await generateEmbeddings(chunks);
+  // --- Step 3: Generate headings for child chunks ---
+  const docContext: DocumentContext = {
+    documentType: document.documentType,
+    documentSubtype: document.documentSubtype,
+    fileName: document.fileName,
+    extractedFields: document.extractedFields,
+  };
 
-  // Delete old chunks for this document.
+  const headings = await generateHeadings(childChunks, docContext);
+
+  // --- Step 4: Assign atomic flags to child chunks ---
+  const chunkFlags = assignChunkFlags(childChunks, text, atomicBlocks);
+
+  // --- Step 5: Build embedding text (context prefix + chunk content) ---
+  const embeddingTexts = childChunks.map((chunk, i) => {
+    const heading = headings[i];
+    const prefix = heading?.combined ?? '';
+    return prefix ? `${prefix}\n\n${chunk}` : chunk;
+  });
+
+  // --- Step 6: Generate embeddings for child chunks only ---
+  const embeddings = await generateEmbeddings(embeddingTexts);
+
+  // --- Step 7: Clean up old chunks and embeddings ---
+  const oldChunks = await prisma.documentChunk.findMany({
+    where: { documentId },
+    select: { id: true, isParent: true },
+  });
+  if (oldChunks.length > 0) {
+    const childIds = oldChunks.filter((c) => !c.isParent).map((c) => `chunk:${c.id}`);
+    if (childIds.length > 0) {
+      await removeEmbeddings(childIds);
+    }
+  }
   await prisma.documentChunk.deleteMany({
     where: { documentId },
   });
 
-  // Remove old embeddings from Vector Search index.
-  const oldChunks = await prisma.documentChunk.findMany({
-    where: { documentId },
-    select: { id: true },
-  });
-  if (oldChunks.length > 0) {
-    await removeEmbeddings(oldChunks.map((c) => `chunk:${c.id}`));
-  }
-
-  // Insert new chunks via Prisma (no raw SQL needed — no embedding column).
-  const createdChunks = await prisma.$transaction(async (tx) => {
+  // --- Step 8: Insert parent chunks ---
+  const createdParents = await prisma.$transaction(async (tx) => {
     const created: Array<{ id: string }> = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const content = chunks[i] ?? '';
+    for (let i = 0; i < parentChunks.length; i++) {
+      const content = parentChunks[i] ?? '';
       if (!content) continue;
       const chunk = await tx.documentChunk.create({
         data: {
           documentId,
           content,
           chunkIndex: i,
+          isParent: true,
+          tokenCount: countTokens(content),
         },
         select: { id: true },
       });
@@ -349,9 +522,70 @@ export async function chunkAndEmbed(documentId: string): Promise<number> {
     return created;
   });
 
-  // Upsert embeddings to Vertex AI Vector Search.
+  // --- Step 9: Link children to parents by text overlap ---
+  const parentTextMap = parentChunks.map((text, i) => ({
+    id: createdParents[i]?.id ?? '',
+    text,
+  }));
+
+  function findParentId(childText: string): string | null {
+    // Find the parent whose text contains the largest overlap with the child
+    let bestParentId: string | null = null;
+    let bestOverlap = 0;
+    for (const parent of parentTextMap) {
+      if (!parent.id) continue;
+      // Check if child text appears within parent text
+      if (parent.text.includes(childText)) {
+        return parent.id;
+      }
+      // Approximate overlap by checking first 100 chars of child in parent
+      const probe = childText.substring(0, 100);
+      const idx = parent.text.indexOf(probe);
+      if (idx !== -1 && probe.length > bestOverlap) {
+        bestOverlap = probe.length;
+        bestParentId = parent.id;
+      }
+    }
+    return bestParentId;
+  }
+
+  // --- Step 10: Insert child chunks with metadata ---
+  const createdChildren = await prisma.$transaction(async (tx) => {
+    const created: Array<{ id: string }> = [];
+    for (let i = 0; i < childChunks.length; i++) {
+      const content = childChunks[i] ?? '';
+      if (!content) continue;
+      const heading = headings[i];
+      const flags = chunkFlags[i];
+      const parentId = findParentId(content);
+
+      const chunk = await tx.documentChunk.create({
+        data: {
+          documentId,
+          content,
+          chunkIndex: i,
+          isParent: false,
+          parentChunkId: parentId,
+          headingL1: heading?.l1 ?? null,
+          headingL2: heading?.l2 ?? null,
+          headingL3: heading?.l3 ?? null,
+          contextPrefix: heading?.combined ?? null,
+          tokenCount: countTokens(content),
+          containsTable: flags?.containsTable ?? false,
+          containsProcedure: flags?.containsProcedure ?? false,
+          isContinuation: flags?.isContinuation ?? false,
+          hasContinuation: flags?.hasContinuation ?? false,
+        },
+        select: { id: true },
+      });
+      created.push(chunk);
+    }
+    return created;
+  });
+
+  // --- Step 11: Upsert child embeddings to Vector Search ---
   if (embeddings) {
-    const datapoints = createdChunks
+    const datapoints = createdChildren
       .map((chunk, i) => {
         const embedding = embeddings[i];
         if (!embedding) return null;
@@ -364,7 +598,56 @@ export async function chunkAndEmbed(documentId: string): Promise<number> {
     }
   }
 
-  return createdChunks.length;
+  return createdChildren.length;
+}
+
+/**
+ * Chunk text with a custom target token count.
+ * Used for parent chunks (2048 tokens) vs child chunks (512 tokens).
+ */
+function chunkTextWithTarget(text: string, targetTokens: number): string[] {
+  if (!text.trim()) return [];
+  if (countTokens(text) <= targetTokens) return [text];
+
+  const maxTokens = Math.ceil(targetTokens * 1.15);
+  const overlapTokens = Math.ceil(targetTokens * 0.1);
+  const chunks: string[] = [];
+  const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim());
+  let currentChunk = '';
+
+  for (const paragraph of paragraphs) {
+    const candidate = currentChunk
+      ? currentChunk + '\n\n' + paragraph
+      : paragraph;
+
+    if (countTokens(candidate) > maxTokens && currentChunk.trim()) {
+      chunks.push(currentChunk);
+      const overlap = getTrailingOverlapTokens(currentChunk, overlapTokens);
+      currentChunk = overlap ? overlap + '\n\n' + paragraph : paragraph;
+    } else {
+      currentChunk = candidate;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
+
+/**
+ * Get trailing overlap of approximately the specified token count.
+ */
+function getTrailingOverlapTokens(text: string, overlapTokens: number): string {
+  const words = text.split(/\s+/);
+  let overlap = '';
+  for (let i = words.length - 1; i >= 0; i--) {
+    const candidate = i < words.length - 1 ? words[i]! + ' ' + overlap : words[i]!;
+    if (countTokens(candidate) > overlapTokens) break;
+    overlap = candidate;
+  }
+  return overlap;
 }
 
 /**
@@ -404,30 +687,57 @@ export async function similaritySearch(
     return [];
   }
 
-  // Fetch chunk content from PlanetScale, scoped to the claim.
+  // Fetch child chunk content + parent reference, scoped to the claim.
   const dbChunks = await prisma.documentChunk.findMany({
     where: {
       id: { in: chunkIds },
+      isParent: false,
       document: { claimId },
     },
     select: {
       id: true,
       documentId: true,
       content: true,
+      parentChunkId: true,
+      headingL1: true,
+      headingL2: true,
+      headingL3: true,
     },
   });
+
+  // Fetch parent chunks for broader LLM context.
+  const parentIds = [...new Set(
+    dbChunks
+      .map((c) => c.parentChunkId)
+      .filter((id): id is string => id !== null),
+  )];
+  const parentMap = new Map<string, string>();
+  if (parentIds.length > 0) {
+    const parents = await prisma.documentChunk.findMany({
+      where: { id: { in: parentIds } },
+      select: { id: true, content: true },
+    });
+    for (const p of parents) {
+      parentMap.set(p.id, p.content);
+    }
+  }
 
   // Build a lookup for ordering by vector distance.
   const distanceMap = new Map(vectorResults.map((r) => [r.id.replace('chunk:', ''), r.distance]));
 
   // Map and sort by similarity (1 - distance).
   const results: SearchResult[] = dbChunks
-    .map((chunk) => ({
-      chunkId: chunk.id,
-      documentId: chunk.documentId,
-      content: chunk.content,
-      similarity: 1 - (distanceMap.get(chunk.id) ?? 1.0),
-    }))
+    .map((chunk) => {
+      const breadcrumbParts = [chunk.headingL1, chunk.headingL2, chunk.headingL3].filter(Boolean);
+      return {
+        chunkId: chunk.id,
+        documentId: chunk.documentId,
+        content: chunk.content,
+        parentContent: chunk.parentChunkId ? (parentMap.get(chunk.parentChunkId) ?? null) : null,
+        headingBreadcrumb: breadcrumbParts.length > 0 ? breadcrumbParts.join(' > ') : null,
+        similarity: 1 - (distanceMap.get(chunk.id) ?? 1.0),
+      };
+    })
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, topK);
 

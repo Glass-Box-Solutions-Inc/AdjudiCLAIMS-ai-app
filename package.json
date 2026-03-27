@@ -25,7 +25,8 @@
     "dev:all": "npm-run-all --parallel dev worker:document worker:llm",
     "worker:document": "tsx server/temporal/document/worker.ts",
     "worker:llm": "tsx server/temporal/llm/worker.ts",
-    "workers": "npm-run-all --parallel worker:document worker:llm"
+    "workers": "npm-run-all --parallel worker:document worker:llm",
+    "test:rag-eval": "tsx tests/rag-eval/eval-runner.ts"
   },
   "dependencies": {
     "@adjudica/document-classifier": "file:../Adjudica-classifier",
@@ -51,6 +52,7 @@
     "@temporalio/workflow": "^1.15.0",
     "better-auth": "^1.5.6",
     "fastify": "^5.2.1",
+    "gpt-tokenizer": "^3.4.0",
     "isbot": "^5.1.22",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
@@ -62,7 +64,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.21.0",
     "@react-router/dev": "^7.3.0",
     "@sentry/vite-plugin": "^5.1.1",
     "@types/node": "^25.5.0",
@@ -79,6 +81,6 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.57.2",
     "vite": "^6.2.2",
-    "vitest": "^3.0.7"
+    "vitest": "^4.1.1"
   }
 }
