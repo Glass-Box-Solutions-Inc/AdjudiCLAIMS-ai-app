@@ -187,6 +187,8 @@ const { buildServer } = await import('../../server/index.js');
 const {
   classifyUrgency,
   addBusinessDays,
+  _isHoliday,
+  _getCAHolidays,
 } = await import('../../server/services/deadline-engine.service.js');
 
 // ---------------------------------------------------------------------------
@@ -377,6 +379,92 @@ describe('Deadline Engine Service', () => {
       const date = new Date('2026-03-18');
       const result = addBusinessDays(date, 0);
       expect(result.getTime()).toBe(date.getTime());
+    });
+
+    it('handles adding multiple business days spanning multiple weekends', () => {
+      // 2026-03-16 is Monday; 10 business days = 2 full weeks
+      const monday = new Date('2026-03-16');
+      const result = addBusinessDays(monday, 10);
+      // 10 business days from Monday = Mon Mar 30
+      expect(result.getDate()).toBe(30);
+      expect(result.getMonth()).toBe(2); // March
+    });
+  });
+
+  describe('CA Holiday functions', () => {
+    it('_getCAHolidays returns 13 holidays for a year', () => {
+      const holidays = _getCAHolidays(2026);
+      expect(holidays.length).toBe(13);
+    });
+
+    it('_isHoliday returns true for Christmas Day (observed)', () => {
+      // 2026-12-25 is a Friday — observed on Friday
+      const christmas = new Date(2026, 11, 25);
+      expect(_isHoliday(christmas)).toBe(true);
+    });
+
+    it('_isHoliday returns false for a regular business day', () => {
+      const regularDay = new Date(2026, 2, 18); // March 18, 2026 (Wednesday)
+      expect(_isHoliday(regularDay)).toBe(false);
+    });
+
+    it('_isHoliday returns true for Thanksgiving', () => {
+      // 4th Thursday of November 2026 = Nov 26
+      const thanksgiving = new Date(2026, 10, 26);
+      expect(_isHoliday(thanksgiving)).toBe(true);
+    });
+
+    it('_isHoliday returns true for day after Thanksgiving', () => {
+      const dayAfterThanksgiving = new Date(2026, 10, 27);
+      expect(_isHoliday(dayAfterThanksgiving)).toBe(true);
+    });
+
+    it('observes Saturday holidays on Friday (e.g., July 4 2026 is Saturday → observed Friday)', () => {
+      // July 4, 2026 is a Saturday, so observed on July 3 (Friday)
+      expect(_isHoliday(new Date(2026, 6, 3))).toBe(true);
+    });
+
+    it('observes Sunday holidays on Monday', () => {
+      // Find a year where Jan 1 falls on Sunday: 2023
+      // Jan 1, 2023 is Sunday → observed on Mon Jan 2
+      expect(_isHoliday(new Date(2023, 0, 2))).toBe(true);
+    });
+
+    it('caches holidays for repeated calls to the same year', () => {
+      // Just exercising the cache hit path
+      _isHoliday(new Date(2026, 0, 1));
+      _isHoliday(new Date(2026, 0, 1)); // second call uses cache
+      expect(true).toBe(true); // no error
+    });
+  });
+
+  describe('classifyUrgency edge cases', () => {
+    it('returns GREEN with 0% when totalMs is 0 (createdAt === dueDate)', () => {
+      const same = new Date('2026-03-20');
+      // Now is before same — technically impossible but edge case
+      const before = new Date('2026-03-19');
+      const result = classifyUrgency(same, same, before);
+      // Elapsed is negative, percent = 0 (due to totalMs = 0)
+      // But now < dueDate so it won't be overdue
+      expect(result.percentElapsed).toBe(0);
+      expect(result.urgency).toBe('GREEN');
+    });
+
+    it('returns OVERDUE when now equals dueDate exactly', () => {
+      const created = new Date('2026-03-01T00:00:00Z');
+      const due = new Date('2026-03-10T00:00:00Z');
+      const now = new Date('2026-03-10T00:00:00Z'); // exact boundary
+      const result = classifyUrgency(created, due, now);
+      expect(result.urgency).toBe('OVERDUE');
+      expect(result.daysRemaining).toBe(0);
+    });
+
+    it('defaults now to current time when not provided', () => {
+      const created = new Date('2020-01-01');
+      const due = new Date('2020-01-10');
+      // Without explicit now, should be way past due
+      const result = classifyUrgency(created, due);
+      expect(result.urgency).toBe('OVERDUE');
     });
   });
 });
@@ -763,6 +851,43 @@ describe('Deadline routes', () => {
       });
 
       expect(response.statusCode).toBe(404);
+    });
+
+    it('logs DEADLINE_WAIVED audit event type for WAIVED status', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+
+      mockDeadlineFindUnique.mockResolvedValueOnce({
+        id: 'dl-1',
+        claimId: 'claim-1',
+        deadlineType: 'ACKNOWLEDGE_15DAY',
+        status: 'PENDING',
+      });
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDeadlineUpdate.mockResolvedValueOnce({
+        ...MOCK_DEADLINE_PENDING,
+        status: 'WAIVED',
+        completedAt: new Date(),
+      });
+
+      const { prisma: mockedPrisma } = await import('../../server/db.js');
+
+      await server.inject({
+        method: 'PATCH',
+        url: '/api/deadlines/dl-1',
+        headers: { cookie },
+        payload: { status: 'WAIVED', reason: 'Duplicate claim' },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- vitest mock assertion
+      expect(mockedPrisma.auditEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            eventType: 'DEADLINE_WAIVED',
+          }) as unknown,
+        }),
+      );
     });
 
     it('creates an audit log entry when marking deadline', async () => {

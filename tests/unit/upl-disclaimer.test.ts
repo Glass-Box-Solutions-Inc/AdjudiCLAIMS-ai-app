@@ -444,4 +444,64 @@ describe('Disclaimer Service', () => {
       }
     });
   });
+
+  // ===========================================================================
+  // All FeatureContext values covered
+  // ===========================================================================
+
+  describe('All FeatureContext values', () => {
+    const allContexts: FeatureContext[] = [
+      'medical_summary',
+      'benefit_calculation',
+      'deadline',
+      'document_classification',
+      'timeline',
+      'comparable_claims',
+      'reserve_analysis',
+      'litigation_risk',
+      'medical_inconsistency',
+      'subrogation',
+      'general',
+    ];
+
+    it.each(allContexts)('getDisclaimer handles featureContext "%s" in GREEN zone', (ctx) => {
+      const result = getDisclaimer('GREEN', ctx);
+      expect(result.zone).toBe('GREEN');
+      expect(result.isBlocked).toBe(false);
+      expect(result.disclaimer.length).toBeGreaterThan(0);
+    });
+
+    it.each(allContexts)('getDisclaimer handles featureContext "%s" in YELLOW zone', (ctx) => {
+      const result = getDisclaimer('YELLOW', ctx);
+      expect(result.zone).toBe('YELLOW');
+      expect(result.isBlocked).toBe(false);
+      expect(result.disclaimer.length).toBeGreaterThan(0);
+    });
+
+    it.each(allContexts)('getDisclaimer handles featureContext "%s" in RED zone', (ctx) => {
+      const result = getDisclaimer('RED', ctx);
+      expect(result.zone).toBe('RED');
+      expect(result.isBlocked).toBe(true);
+      expect(result.referralMessage).toBeDefined();
+    });
+  });
+
+  // ===========================================================================
+  // RED zone with featureContext + redTrigger combined
+  // ===========================================================================
+
+  describe('RED zone with combined parameters', () => {
+    it('RED zone with featureContext and redTrigger returns trigger-specific referral', () => {
+      const result = getDisclaimer('RED', 'comparable_claims', 'settlement');
+      expect(result.zone).toBe('RED');
+      expect(result.isBlocked).toBe(true);
+      expect(result.referralMessage).toContain('Settlement');
+    });
+
+    it('YELLOW zone ignores redTrigger parameter', () => {
+      const result = getDisclaimer('YELLOW', 'general', 'coverage');
+      expect(result.zone).toBe('YELLOW');
+      expect(result.referralMessage).toBeUndefined();
+    });
+  });
 });

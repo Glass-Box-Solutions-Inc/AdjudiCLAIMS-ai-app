@@ -513,6 +513,47 @@ describe('Workflow Routes', () => {
 
       expect(response.statusCode).toBe(409);
     });
+
+    it('returns 404 for unknown workflowId', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/claims/claim-1/workflows/no_such_workflow_xyz/start',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Workflow not found');
+    });
+
+    it('returns 404 when claim not found', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(null);
+
+      const response = await server.inject({
+        method: 'POST',
+        url: `/api/claims/nonexistent/workflows/${WORKFLOW_ID}/start`,
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Claim not found');
+    });
+
+    it('returns 401 when not authenticated', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/start`,
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
   });
 
   // ── PATCH /api/claims/:claimId/workflows/:workflowId/steps/:stepId ────────
@@ -589,6 +630,142 @@ describe('Workflow Routes', () => {
       const skippedResult = body.steps.find((s) => s.id === stepId);
       expect(skippedResult?.status).toBe('SKIPPED');
     });
+
+    it('returns 400 for invalid request body', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/steps/intake_step_1`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'invalid_action' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Invalid request body');
+    });
+
+    it('returns 400 when skip action has empty reason', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/steps/intake_step_1`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'skip', reason: '' },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('returns 404 for unknown workflowId in step action', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: '/api/claims/claim-1/workflows/no_such_workflow_xyz/steps/some_step',
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'complete' },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Workflow not found');
+    });
+
+    it('returns 404 for unknown stepId in step action', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/steps/nonexistent_step`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'complete' },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Step not found');
+    });
+
+    it('returns 404 when workflow has not been started', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockWorkflowProgressFindUniqueOrThrow.mockRejectedValueOnce(
+        new Error('No WorkflowProgress found'),
+      );
+
+      const { getWorkflow } = await import('../../server/services/workflow-engine.service.js');
+      const workflow = getWorkflow(WORKFLOW_ID) as NonNullable<ReturnType<typeof getWorkflow>>;
+      const stepId = (workflow.steps[0] as (typeof workflow.steps)[number]).id;
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/steps/${stepId}`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'complete' },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toContain('not been started');
+    });
+
+    it('returns 422 when attempting to skip a non-skippable step', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const { getWorkflow } = await import('../../server/services/workflow-engine.service.js');
+      const workflow = getWorkflow(WORKFLOW_ID) as NonNullable<ReturnType<typeof getWorkflow>>;
+      const nonSkippable = workflow.steps.find((s) => !s.isSkippable) as (typeof workflow.steps)[number];
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/steps/${nonSkippable.id}`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'skip', reason: 'Trying to skip' },
+      });
+
+      expect(response.statusCode).toBe(422);
+    });
+
+    it('returns 404 when claim not found for step action', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(null);
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/nonexistent/workflows/${WORKFLOW_ID}/steps/intake_step_1`,
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: { action: 'complete' },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Claim not found');
+    });
+
+    it('returns 401 when not authenticated', async () => {
+      const response = await server.inject({
+        method: 'PATCH',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/steps/intake_step_1`,
+        payload: { action: 'complete' },
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
   });
 
   // ── GET /api/claims/:claimId/workflows/:workflowId/progress ───────────────
@@ -622,6 +799,66 @@ describe('Workflow Routes', () => {
       expect(body.workflowId).toBe(WORKFLOW_ID);
       expect(typeof body.totalSteps).toBe('number');
       expect(body.completedSteps).toBe(0);
+    });
+
+    it('returns 404 for unknown workflowId', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/claim-1/workflows/no_such_workflow_xyz/progress',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Workflow not found');
+    });
+
+    it('returns 404 when workflow has not been started', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockWorkflowProgressFindUniqueOrThrow.mockRejectedValueOnce(
+        new Error('No WorkflowProgress found'),
+      );
+
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/progress`,
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toContain('not been started');
+    });
+
+    it('returns 404 when claim not found', async () => {
+      cookie = await loginAs(server, MOCK_USER, true);
+
+      mockClaimFindUnique.mockResolvedValueOnce(null);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/claims/nonexistent/workflows/${WORKFLOW_ID}/progress`,
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body) as { error: string };
+      expect(body.error).toBe('Claim not found');
+    });
+
+    it('returns 401 when not authenticated', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: `/api/claims/claim-1/workflows/${WORKFLOW_ID}/progress`,
+      });
+
+      expect(response.statusCode).toBe(401);
     });
   });
 

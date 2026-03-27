@@ -204,4 +204,79 @@ describe('OMFS Comparison Service — compareBillToOmfs', () => {
     // amountClaimed should be rounded
     expect((result.lineItems[0] as (typeof result.lineItems)[number]).amountClaimed).toBe(100.01);
   });
+
+  it('returns discrepancyPercent of 0 when totalOmfsAllowed is 0 (all unknown codes)', () => {
+    const result = compareBillToOmfs([
+      { cptCode: '99999', amount: 500.00, description: 'Unknown' },
+      { cptCode: '88888', amount: 200.00, description: 'Also unknown' },
+    ]);
+
+    expect(result.totalOmfsAllowed).toBe(0);
+    expect(result.discrepancyPercent).toBe(0);
+  });
+
+  it('handles a single line item billed at exactly the OMFS rate', () => {
+    const result = compareBillToOmfs([
+      { cptCode: '97110', amount: 42.15, description: 'Therapeutic exercises' },
+    ]);
+
+    expect(result.totalDiscrepancy).toBe(0);
+    expect(result.discrepancyPercent).toBe(0);
+    const item = result.lineItems[0] as (typeof result.lineItems)[number];
+    expect(item.isOvercharge).toBe(false);
+    expect(item.overchargeAmount).toBe(0);
+  });
+
+  it('handles all 12 known CPT codes in a single bill comparison', () => {
+    const allCodes = [
+      { cptCode: '99213', amount: 100, description: 'Visit' },
+      { cptCode: '99214', amount: 200, description: 'Visit' },
+      { cptCode: '97110', amount: 60, description: 'Exercise' },
+      { cptCode: '97140', amount: 50, description: 'Manual therapy' },
+      { cptCode: '97530', amount: 60, description: 'Activities' },
+      { cptCode: '72148', amount: 400, description: 'MRI' },
+      { cptCode: '72141', amount: 400, description: 'MRI' },
+      { cptCode: '20610', amount: 150, description: 'Injection' },
+      { cptCode: '64483', amount: 300, description: 'Epidural' },
+      { cptCode: '99203', amount: 200, description: 'New visit' },
+      { cptCode: '27447', amount: 2000, description: 'Knee' },
+      { cptCode: '29881', amount: 1000, description: 'Arthroscopy' },
+    ];
+
+    const result = compareBillToOmfs(allCodes);
+    expect(result.lineItems).toHaveLength(12);
+    expect(result.totalClaimed).toBeGreaterThan(0);
+    expect(result.totalOmfsAllowed).toBeGreaterThan(0);
+    // All amounts are above OMFS rates so all should be overcharges
+    for (const item of result.lineItems) {
+      expect(item.omfsAllowed).not.toBeNull();
+    }
+  });
+});
+
+// ==========================================================================
+// lookupOmfsRate — additional coverage
+// ==========================================================================
+
+describe('OMFS Comparison Service — lookupOmfsRate additional', () => {
+  it('returns effectiveDate for known CPT codes', () => {
+    const result = lookupOmfsRate('97140');
+    expect(result.effectiveDate).toBe('2026-01-01');
+  });
+
+  it('does not return effectiveDate for unknown CPT codes', () => {
+    const result = lookupOmfsRate('00000');
+    expect(result.effectiveDate).toBeUndefined();
+  });
+
+  it('returns correct data for all remaining stub CPT codes', () => {
+    // Codes not individually tested above
+    const codes = ['97530', '72141', '20610', '99203', '29881'];
+    for (const code of codes) {
+      const result = lookupOmfsRate(code);
+      expect(result.omfsRate).not.toBeNull();
+      expect(result.description).not.toContain('not found');
+      expect(result.feeScheduleSection).toBe('RBRVS');
+    }
+  });
 });
