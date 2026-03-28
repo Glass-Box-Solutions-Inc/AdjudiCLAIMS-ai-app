@@ -510,6 +510,18 @@ describe('Document Pipeline Orchestrator', () => {
       generateTimelineEvents: vi.fn().mockResolvedValue(3),
     }));
 
+    // Mock graph enrichment
+    vi.doMock('../../server/services/graph/graph-enrichment.service.js', () => ({
+      enrichGraph: vi.fn().mockResolvedValue({
+        documentId: 'doc-1',
+        nodesCreated: 2,
+        nodesUpdated: 0,
+        edgesCreated: 1,
+        edgesUpdated: 0,
+        errors: [],
+      }),
+    }));
+
     // Re-import pipeline after mocking its dependencies
     const { processDocumentPipeline } = await import('../../server/services/document-pipeline.service.js');
 
@@ -523,9 +535,12 @@ describe('Document Pipeline Orchestrator', () => {
     expect(result.extractionSuccess).toBe(true);
     expect(result.embeddingSuccess).toBe(true);
     expect(result.timelineSuccess).toBe(true);
+    expect(result.graphEnrichmentSuccess).toBe(true);
     expect(result.fieldsExtracted).toBe(1);
     expect(result.chunksCreated).toBe(5);
     expect(result.timelineEventsCreated).toBe(3);
+    expect(result.graphNodesCreated).toBe(2);
+    expect(result.graphEdgesCreated).toBe(1);
     expect(result.errors).toHaveLength(0);
   });
 
@@ -557,6 +572,9 @@ describe('Document Pipeline Orchestrator', () => {
     }));
     vi.doMock('../../server/services/timeline.service.js', () => ({
       generateTimelineEvents: vi.fn(),
+    }));
+    vi.doMock('../../server/services/graph/graph-enrichment.service.js', () => ({
+      enrichGraph: vi.fn(),
     }));
 
     const { processDocumentPipeline } = await import('../../server/services/document-pipeline.service.js');
