@@ -22,11 +22,15 @@ import { verifyClaimAccess } from '../middleware/claim-access.js';
 import {
   getTemplates,
   getTemplate,
-  populateTemplate,
   generateLetter,
   getClaimLetters,
   getLetter,
 } from '../services/letter-template.service.js';
+import {
+  generateDraft,
+  refineDraft,
+  getDraftHistory,
+} from '../services/draft-generation.service.js';
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -35,6 +39,16 @@ import {
 const GenerateLetterBodySchema = z.object({
   templateId: z.string().min(1, 'templateId is required'),
   overrides: z.record(z.string(), z.string()).optional(),
+});
+
+const GenerateDraftBodySchema = z.object({
+  templateId: z.string().min(1, 'templateId is required'),
+  instructions: z.string().optional(),
+  overrides: z.record(z.string(), z.string()).optional(),
+});
+
+const RefineDraftBodySchema = z.object({
+  instruction: z.string().min(1, 'instruction is required'),
 });
 
 // ---------------------------------------------------------------------------
@@ -153,11 +167,11 @@ export async function letterRoutes(server: FastifyInstance): Promise<void> {
           overrides,
         );
 
-        return reply.code(201).send({ letter });
+        return await reply.code(201).send({ letter });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Letter generation failed';
         request.log.error({ err, claimId, templateId }, 'Letter generation failed');
-        return reply.code(500).send({ error: message });
+        return await reply.code(500).send({ error: message });
       }
     },
   );
@@ -217,6 +231,149 @@ export async function letterRoutes(server: FastifyInstance): Promise<void> {
       }
 
       return { letter };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // AI Draft Generation Routes
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /api/claims/:claimId/drafts/generate
+   *
+   * Generate an AI-assisted draft from a template for a specific claim.
+   * Uses LLM to produce richer, more contextual content than template-only.
+   * All output is UPL-validated (GREEN zone only).
+   */
+  server.post(
+    '/claims/:claimId/drafts/generate',
+    { preHandler: [requireAuth()] },
+    async (request, reply) => {
+      const user = request.session.user;
+
+      if (!user) {
+        return reply.code(401).send({ error: 'Authentication required' });
+      }
+
+      const { claimId } = request.params as { claimId: string };
+
+      // Verify claim access
+      const access = await verifyClaimAccess(claimId, user.id, user.role, user.organizationId);
+
+      if (!access.authorized) {
+        return reply.code(403).send({ error: 'Access denied to this claim' });
+      }
+
+      // Validate request body
+      const parsed = GenerateDraftBodySchema.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: 'Invalid request body',
+          details: parsed.error.issues,
+        });
+      }
+
+      try {
+        const draft = await generateDraft({
+          claimId,
+          userId: user.id,
+          templateId: parsed.data.templateId,
+          instructions: parsed.data.instructions,
+          overrides: parsed.data.overrides,
+        });
+
+        return await reply.code(201).send({ draft });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Draft generation failed';
+        request.log.error({ err, claimId, templateId: parsed.data.templateId }, 'Draft generation failed');
+        return await reply.code(500).send({ error: message });
+      }
+    },
+  );
+
+  /**
+   * POST /api/drafts/:draftId/refine
+   *
+   * Refine an existing AI-generated draft with a natural-language instruction.
+   * Supports iterative refinement — each call updates the draft and tracks
+   * revision history.
+   */
+  server.post(
+    '/drafts/:draftId/refine',
+    { preHandler: [requireAuth()] },
+    async (request, reply) => {
+      const user = request.session.user;
+
+      if (!user) {
+        return reply.code(401).send({ error: 'Authentication required' });
+      }
+
+      const { draftId } = request.params as { draftId: string };
+
+      // Validate request body
+      const parsed = RefineDraftBodySchema.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: 'Invalid request body',
+          details: parsed.error.issues,
+        });
+      }
+
+      try {
+        const result = await refineDraft({
+          draftId,
+          instruction: parsed.data.instruction,
+          userId: user.id,
+        });
+
+        return { result };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Draft refinement failed';
+        request.log.error({ err, draftId }, 'Draft refinement failed');
+
+        if (message.includes('not found')) {
+          return await reply.code(404).send({ error: message });
+        }
+
+        return await reply.code(500).send({ error: message });
+      }
+    },
+  );
+
+  /**
+   * GET /api/drafts/:draftId/history
+   *
+   * Get the revision history for a draft, showing all prior iterations
+   * and the instructions that prompted each change.
+   */
+  server.get(
+    '/drafts/:draftId/history',
+    { preHandler: [requireAuth()] },
+    async (request, reply) => {
+      const user = request.session.user;
+
+      if (!user) {
+        return reply.code(401).send({ error: 'Authentication required' });
+      }
+
+      const { draftId } = request.params as { draftId: string };
+
+      try {
+        const history = await getDraftHistory(draftId);
+
+        return { history };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to fetch draft history';
+        request.log.error({ err, draftId }, 'Draft history fetch failed');
+
+        if (message.includes('not found')) {
+          return await reply.code(404).send({ error: message });
+        }
+
+        return await reply.code(500).send({ error: message });
+      }
     },
   );
 }

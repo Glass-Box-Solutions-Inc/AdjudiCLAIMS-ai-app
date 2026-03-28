@@ -20,6 +20,10 @@ import { getDisclaimer, type DisclaimerResult } from './disclaimer.service.js';
 import { getLLMAdapter } from '../lib/llm/index.js';
 import { EXAMINER_CASE_CHAT_PROMPT } from '../prompts/adjudiclaims-chat.prompts.js';
 import { logAuditEvent } from '../middleware/audit.js';
+import { hybridSearch } from './hybrid-search.service.js';
+import { queryGraphForExaminer, formatGraphContext } from './graph/examiner-graph-access.service.js';
+import { getClaimGraphSummary } from './graph/graph-traversal.service.js';
+import { EXAMINER_TOOLS, executeTool } from './chat-tools.service.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +58,8 @@ export interface Citation {
   documentName: string;
   content: string;
   similarity: number;
+  /** Heading breadcrumb for source attribution (L1 > L2 > L3) */
+  headingBreadcrumb?: string;
 }
 
 /**
@@ -82,6 +88,8 @@ export interface ChatResponse {
   wasBlocked: boolean;
   /** Document chunks retrieved via RAG for this response. */
   citations: Citation[];
+  /** Whether graph context was included in the LLM prompt. */
+  graphContextIncluded?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,14 +105,34 @@ export interface ChatResponse {
  */
 async function retrieveContext(
   claimId: string,
-  _query: string,
+  query: string,
   topK = 5,
 ): Promise<Citation[]> {
+  // Try hybrid search (vector + keyword fusion)
+  try {
+    const results = await hybridSearch(query, claimId, { finalTopK: topK });
+
+    if (results.length > 0) {
+      return results.map((r) => ({
+        documentId: r.documentId,
+        documentName: r.headingBreadcrumb ?? 'Unknown Document',
+        content: r.parentContent ?? r.content,  // Prefer parent content for broader LLM context
+        similarity: r.fusedScore,
+      }));
+    }
+  } catch (err) {
+    console.warn(
+      '[examiner-chat] Hybrid search failed, falling back to document order:',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // Fallback: ordered chunk retrieval (no search infrastructure configured)
   const chunks = await prisma.documentChunk.findMany({
     where: {
+      isParent: false,
       document: {
         claimId,
-        // Exclude restricted documents
         accessLevel: { not: 'ATTORNEY_ONLY' },
         containsLegalAnalysis: false,
         containsWorkProduct: false,
@@ -129,7 +157,7 @@ async function retrieveContext(
     documentId: chunk.document.id,
     documentName: chunk.document.fileName,
     content: chunk.content,
-    similarity: 1.0, // Placeholder until vector search is active
+    similarity: 1.0,
   }));
 }
 
@@ -272,22 +300,65 @@ export async function processExaminerChat(
     };
   }
 
-  // Stage 2: RAG retrieval + LLM generation
+  // --- Stage 1.5: Graph Context ---
+  let graphContext = '';
+  try {
+    const maturity = await getClaimGraphSummary(claimId);
+    // Only query graph if maturity is GROWING or higher
+    if (maturity.maturityLabel !== 'NASCENT') {
+      const graphResult = await queryGraphForExaminer(
+        claimId,
+        classification.zone as 'GREEN' | 'YELLOW' | 'RED',
+        { maxNodes: 20, maxEdges: 30 },
+      );
+      graphContext = formatGraphContext(graphResult);
+    }
+  } catch (err) {
+    // Graph context failure is non-fatal — chat continues with RAG only
+    console.warn(
+      '[examiner-chat] Graph context failed, continuing with RAG only:',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // Stage 2: RAG retrieval + LLM generation (with agentic tool-use loop)
   const citations = await retrieveContext(claimId, message);
   const contextString = buildContextString(citations);
 
   const adapter = getLLMAdapter('FREE');
-  const llmResponse = await adapter.generate({
+  const initialRequest = {
     systemPrompt: EXAMINER_CASE_CHAT_PROMPT,
     messages: [
       {
-        role: 'user',
-        content: `## CLAIM DOCUMENTS\n${contextString}\n\n## EXAMINER QUESTION\n${message}`,
+        role: 'user' as const,
+        content: `${graphContext ? `${graphContext}\n\n` : ''}## CLAIM DOCUMENTS\n${contextString}\n\n## EXAMINER QUESTION\n${message}`,
       },
     ],
     temperature: 0.3,
     maxTokens: 4096,
-  });
+    tools: EXAMINER_TOOLS,
+  };
+
+  let llmResponse = await adapter.generate(initialRequest);
+
+  // Agentic loop: if LLM requests tool use, execute and continue
+  const MAX_TOOL_ROUNDS = 3;
+  let toolRounds = 0;
+
+  while (llmResponse.toolCalls?.length && toolRounds < MAX_TOOL_ROUNDS) {
+    toolRounds++;
+    const toolResults = await Promise.all(
+      llmResponse.toolCalls.map(async (tc) => ({
+        toolCallId: tc.id,
+        content: await executeTool(tc, claimId, classification.zone),
+      })),
+    );
+
+    llmResponse = await adapter.generate({
+      ...initialRequest,
+      toolResults,
+    });
+  }
 
   let responseContent = llmResponse.content;
 
@@ -384,6 +455,7 @@ export async function processExaminerChat(
       messageId: assistantMessage.id,
       zone: classification.zone,
       citationCount: citations.length,
+      graphContextLength: graphContext.length,
       provider: llmResponse.provider,
       model: llmResponse.model,
       usage: llmResponse.usage,
@@ -401,5 +473,6 @@ export async function processExaminerChat(
     validation,
     wasBlocked: false,
     citations,
+    graphContextIncluded: graphContext.length > 0,
   };
 }

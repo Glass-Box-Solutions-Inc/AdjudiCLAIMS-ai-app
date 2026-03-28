@@ -70,11 +70,43 @@ export interface LLMMessage {
   content: string;
 }
 
+// ---------------------------------------------------------------------------
+// Tool-use types
+// ---------------------------------------------------------------------------
+
+/** JSON Schema definition for a tool the LLM can invoke. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;  // JSON Schema
+}
+
+/** A tool invocation returned by the LLM. */
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/** The result of executing a tool, sent back to the LLM on the next turn. */
+export interface ToolResult {
+  toolCallId: string;
+  content: string;
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response
+// ---------------------------------------------------------------------------
+
 export interface LLMRequest {
   messages: LLMMessage[];
   maxTokens?: number;
   temperature?: number;
   systemPrompt?: string;
+  /** Tool definitions available for this request. */
+  tools?: ToolDefinition[];
+  /** Results from previously invoked tools (multi-turn tool use). */
+  toolResults?: ToolResult[];
 }
 
 export interface LLMUsage {
@@ -88,4 +120,8 @@ export interface LLMResponse {
   model: string;
   usage: LLMUsage;
   finishReason: string;
+  /** Tool invocations requested by the LLM (present when stopReason === 'tool_use'). */
+  toolCalls?: ToolCall[];
+  /** Semantic stop reason: 'end_turn' | 'tool_use' | 'max_tokens'. */
+  stopReason?: string;
 }

@@ -177,6 +177,118 @@ describe('Document routes', () => {
   });
 
   // =========================================================================
+  // POST /api/claims/:claimId/documents (upload)
+  // =========================================================================
+  describe('POST /api/claims/:claimId/documents', () => {
+    it('returns 401 for unauthenticated request', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/claims/claim-1/documents',
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('returns 404 when claim not found', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(null);
+
+      const form = new FormData();
+      form.append('file', new Blob(['test-content'], { type: 'application/pdf' }), 'test.pdf');
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/claims/nonexistent/documents',
+        headers: { cookie },
+        payload: form,
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 400 when no file is uploaded', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/claims/claim-1/documents',
+        headers: {
+          cookie,
+          'content-type': 'multipart/form-data; boundary=----formdata',
+        },
+        payload: '------formdata--',
+      });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('returns 400 for unsupported MIME type', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const boundary = '----vitest-boundary';
+      const body = [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="file"; filename="test.txt"',
+        'Content-Type: text/plain',
+        '',
+        'hello world',
+        `--${boundary}--`,
+      ].join('\r\n');
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/claims/claim-1/documents',
+        headers: {
+          cookie,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: body,
+      });
+      expect(response.statusCode).toBe(400);
+      const respBody = response.json<{ error: string }>();
+      expect(respBody.error).toBe('Unsupported file type');
+    });
+
+    it('returns 201 and creates document for valid PDF upload', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentCreate.mockResolvedValueOnce({
+        id: 'doc-new',
+        claimId: 'claim-1',
+        fileName: 'report.pdf',
+        fileUrl: './uploads/org-1/claim-1/doc-new/report.pdf',
+        fileSize: 11,
+        mimeType: 'application/pdf',
+        documentType: null,
+        ocrStatus: 'PENDING',
+        createdAt: new Date('2026-03-27'),
+      });
+
+      const boundary = '----vitest-boundary-upload';
+      const body = [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="file"; filename="report.pdf"',
+        'Content-Type: application/pdf',
+        '',
+        'PDF-content',
+        `--${boundary}--`,
+      ].join('\r\n');
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/claims/claim-1/documents',
+        headers: {
+          cookie,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: body,
+      });
+      expect(response.statusCode).toBe(201);
+      const respBody = response.json<{ id: string; ocrStatus: string }>();
+      expect(respBody.ocrStatus).toBe('PENDING');
+    });
+  });
+
+  // =========================================================================
   // GET /api/claims/:claimId/documents
   // =========================================================================
   describe('GET /api/claims/:claimId/documents', () => {
@@ -216,6 +328,75 @@ describe('Document routes', () => {
       const body = response.json<{ documents: unknown[]; total: number }>();
       expect(body.documents).toHaveLength(1);
       expect(body.total).toBe(1);
+    });
+
+    it('supports take and skip pagination parameters', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentFindMany.mockResolvedValueOnce([MOCK_DOCUMENT]);
+      mockDocumentCount.mockResolvedValueOnce(5);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/claim-1/documents?take=1&skip=2',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ documents: unknown[]; total: number; take: number; skip: number }>();
+      expect(body.take).toBe(1);
+      expect(body.skip).toBe(2);
+    });
+
+    it('clamps take to 200 maximum', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentFindMany.mockResolvedValueOnce([]);
+      mockDocumentCount.mockResolvedValueOnce(0);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/claim-1/documents?take=500',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ take: number }>();
+      expect(body.take).toBe(200);
+    });
+
+    it('defaults take to 50 for invalid value', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentFindMany.mockResolvedValueOnce([]);
+      mockDocumentCount.mockResolvedValueOnce(0);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/claim-1/documents?take=abc',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ take: number }>();
+      expect(body.take).toBe(50);
+    });
+
+    it('defaults skip to 0 for negative value', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentFindMany.mockResolvedValueOnce([]);
+      mockDocumentCount.mockResolvedValueOnce(0);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/claim-1/documents?skip=-1',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ skip: number }>();
+      expect(body.skip).toBe(0);
     });
   });
 
@@ -258,6 +439,105 @@ describe('Document routes', () => {
       const body = response.json<{ id: string; extractedFields: unknown[] }>();
       expect(body.id).toBe('doc-1');
       expect(body.extractedFields).toHaveLength(1);
+    });
+
+    it('returns 404 when claim access is denied', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockDocumentFindUnique.mockResolvedValueOnce(MOCK_DOCUMENT);
+      // Claim belongs to different org
+      mockClaimFindUnique.mockResolvedValueOnce({
+        ...MOCK_CLAIM,
+        organizationId: 'other-org',
+      });
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 403 for attorney-only document (UPL data boundary)', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      const restrictedDoc = {
+        ...MOCK_DOCUMENT,
+        accessLevel: 'ATTORNEY_ONLY',
+        containsLegalAnalysis: false,
+        containsWorkProduct: false,
+        containsPrivileged: false,
+      };
+      mockDocumentFindUnique.mockResolvedValueOnce(restrictedDoc);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(403);
+      const body = response.json<{ error: string }>();
+      expect(body.error).toContain('restricted');
+    });
+
+    it('returns 403 for document containing legal analysis', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      const restrictedDoc = {
+        ...MOCK_DOCUMENT,
+        accessLevel: 'EXAMINER_ONLY',
+        containsLegalAnalysis: true,
+        containsWorkProduct: false,
+        containsPrivileged: false,
+      };
+      mockDocumentFindUnique.mockResolvedValueOnce(restrictedDoc);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('returns 403 for document containing work product', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      const restrictedDoc = {
+        ...MOCK_DOCUMENT,
+        accessLevel: 'EXAMINER_ONLY',
+        containsLegalAnalysis: false,
+        containsWorkProduct: true,
+        containsPrivileged: false,
+      };
+      mockDocumentFindUnique.mockResolvedValueOnce(restrictedDoc);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('returns 403 for document containing privileged content', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      const restrictedDoc = {
+        ...MOCK_DOCUMENT,
+        accessLevel: 'EXAMINER_ONLY',
+        containsLegalAnalysis: false,
+        containsWorkProduct: false,
+        containsPrivileged: true,
+      };
+      mockDocumentFindUnique.mockResolvedValueOnce(restrictedDoc);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(403);
     });
   });
 
@@ -302,6 +582,91 @@ describe('Document routes', () => {
       });
       expect(response.statusCode).toBe(204);
     });
+
+    it('returns 404 for non-existent document', async () => {
+      const cookie = await loginAs(server, MOCK_SUPERVISOR);
+      mockDocumentFindUnique.mockResolvedValueOnce(null);
+
+      const response = await server.inject({
+        method: 'DELETE',
+        url: '/api/documents/nonexistent',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 404 when supervisor has no access to the claim', async () => {
+      const cookie = await loginAs(server, MOCK_SUPERVISOR);
+      mockDocumentFindUnique.mockResolvedValueOnce({
+        id: 'doc-1',
+        claimId: 'claim-1',
+        fileUrl: './uploads/org-1/claim-1/doc-1/file.pdf',
+        fileName: 'file.pdf',
+      });
+      // Claim belongs to different org
+      mockClaimFindUnique.mockResolvedValueOnce({
+        ...MOCK_CLAIM,
+        organizationId: 'other-org',
+      });
+
+      const response = await server.inject({
+        method: 'DELETE',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('allows admin to delete a document', async () => {
+      const MOCK_ADMIN = {
+        id: 'user-3',
+        email: 'admin@acme-ins.test',
+        name: 'Admin User',
+        role: 'CLAIMS_ADMIN' as const,
+        organizationId: 'org-1',
+        isActive: true,
+      };
+      const cookie = await loginAs(server, MOCK_ADMIN);
+      mockDocumentFindUnique.mockResolvedValueOnce({
+        id: 'doc-1',
+        claimId: 'claim-1',
+        fileUrl: './uploads/org-1/claim-1/doc-1/file.pdf',
+        fileName: 'file.pdf',
+      });
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentDelete.mockResolvedValueOnce({});
+
+      const response = await server.inject({
+        method: 'DELETE',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(204);
+    });
+
+    it('still deletes DB record if storage delete fails', async () => {
+      const cookie = await loginAs(server, MOCK_SUPERVISOR);
+      mockDocumentFindUnique.mockResolvedValueOnce({
+        id: 'doc-1',
+        claimId: 'claim-1',
+        fileUrl: './uploads/org-1/claim-1/doc-1/file.pdf',
+        fileName: 'file.pdf',
+      });
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockDocumentDelete.mockResolvedValueOnce({});
+
+      // Make storage delete throw
+      const { storageService } = await import('../../server/services/storage.service.js');
+      vi.mocked(storageService.delete).mockRejectedValueOnce(new Error('Storage unavailable'));
+
+      const response = await server.inject({
+        method: 'DELETE',
+        url: '/api/documents/doc-1',
+        headers: { cookie },
+      });
+      // Should still succeed — storage failure is logged, not rethrown
+      expect(response.statusCode).toBe(204);
+    });
   });
 
   // =========================================================================
@@ -341,6 +706,35 @@ describe('Document routes', () => {
       const body = response.json<{ events: unknown[]; total: number }>();
       expect(body.events).toHaveLength(1);
       expect(body.total).toBe(1);
+    });
+
+    it('returns 404 when claim not found', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(null);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/nonexistent/timeline',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns empty events array for claim with no timeline events', async () => {
+      const cookie = await loginAs(server, MOCK_USER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM);
+      mockTimelineEventFindMany.mockResolvedValueOnce([]);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/claims/claim-1/timeline',
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ events: unknown[]; total: number }>();
+      expect(body.events).toHaveLength(0);
+      expect(body.total).toBe(0);
     });
   });
 });
