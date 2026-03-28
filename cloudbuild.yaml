@@ -85,7 +85,7 @@ steps:
       - '--max-instances=10'
       - '--memory=1Gi'
       - '--cpu=1'
-      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SESSION_SECRET=adjudiclaims-session-secret:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
+      - '--set-secrets=DATABASE_URL=adjudiclaims-database-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SESSION_SECRET=adjudiclaims-session-secret:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
       - '--set-env-vars=NODE_ENV=production,PORT=4901,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${SHORT_SHA}'
     id: deploy-api
     waitFor: ['docker-push']
@@ -106,7 +106,7 @@ steps:
       - '--no-cpu-throttling'
       - '--command=npx'
       - '--args=tsx,server/temporal/document/worker.ts'
-      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
+      - '--set-secrets=DATABASE_URL=adjudiclaims-database-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
       - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${SHORT_SHA}'
     id: deploy-worker-document
     waitFor: ['docker-push']
@@ -127,7 +127,7 @@ steps:
       - '--no-cpu-throttling'
       - '--command=npx'
       - '--args=tsx,server/temporal/llm/worker.ts'
-      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
+      - '--set-secrets=DATABASE_URL=adjudiclaims-database-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
       - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${SHORT_SHA}'
     id: deploy-worker-llm
     waitFor: ['docker-push']
