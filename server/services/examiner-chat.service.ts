@@ -21,6 +21,8 @@ import { getLLMAdapter } from '../lib/llm/index.js';
 import { EXAMINER_CASE_CHAT_PROMPT } from '../prompts/adjudiclaims-chat.prompts.js';
 import { logAuditEvent } from '../middleware/audit.js';
 import { hybridSearch } from './hybrid-search.service.js';
+import { queryGraphForExaminer, formatGraphContext } from './graph/examiner-graph-access.service.js';
+import { getClaimGraphSummary } from './graph/graph-traversal.service.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +87,8 @@ export interface ChatResponse {
   wasBlocked: boolean;
   /** Document chunks retrieved via RAG for this response. */
   citations: Citation[];
+  /** Whether graph context was included in the LLM prompt. */
+  graphContextIncluded?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +299,27 @@ export async function processExaminerChat(
     };
   }
 
+  // --- Stage 1.5: Graph Context ---
+  let graphContext = '';
+  try {
+    const maturity = await getClaimGraphSummary(claimId);
+    // Only query graph if maturity is GROWING or higher
+    if (maturity.maturityLabel !== 'NASCENT') {
+      const graphResult = await queryGraphForExaminer(
+        claimId,
+        classification.zone as 'GREEN' | 'YELLOW' | 'RED',
+        { maxNodes: 20, maxEdges: 30 },
+      );
+      graphContext = formatGraphContext(graphResult);
+    }
+  } catch (err) {
+    // Graph context failure is non-fatal — chat continues with RAG only
+    console.warn(
+      '[examiner-chat] Graph context failed, continuing with RAG only:',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   // Stage 2: RAG retrieval + LLM generation
   const citations = await retrieveContext(claimId, message);
   const contextString = buildContextString(citations);
@@ -305,7 +330,7 @@ export async function processExaminerChat(
     messages: [
       {
         role: 'user',
-        content: `## CLAIM DOCUMENTS\n${contextString}\n\n## EXAMINER QUESTION\n${message}`,
+        content: `${graphContext ? `${graphContext}\n\n` : ''}## CLAIM DOCUMENTS\n${contextString}\n\n## EXAMINER QUESTION\n${message}`,
       },
     ],
     temperature: 0.3,
@@ -407,6 +432,7 @@ export async function processExaminerChat(
       messageId: assistantMessage.id,
       zone: classification.zone,
       citationCount: citations.length,
+      graphContextLength: graphContext.length,
       provider: llmResponse.provider,
       model: llmResponse.model,
       usage: llmResponse.usage,
@@ -424,5 +450,6 @@ export async function processExaminerChat(
     validation,
     wasBlocked: false,
     citations,
+    graphContextIncluded: graphContext.length > 0,
   };
 }
