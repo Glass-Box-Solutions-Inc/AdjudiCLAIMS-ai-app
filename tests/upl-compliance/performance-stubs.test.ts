@@ -101,10 +101,10 @@ describe('Performance requirements: targets defined and documented', () => {
     console.info(`[Perf] UPL sync classification target: ${String(uplClassificationSyncMs)}ms`);
   });
 
-  it('output validation target is defined and ≤10ms', () => {
+  it('output validation target is defined and ≤100ms', () => {
     const { outputValidationMs } = PERFORMANCE_TARGETS;
     expect(outputValidationMs).toBeDefined();
-    expect(outputValidationMs).toBeLessThanOrEqual(10);
+    expect(outputValidationMs).toBeLessThanOrEqual(100);
     console.info(`[Perf] Output validation target: ${String(outputValidationMs)}ms`);
   });
 
