@@ -36,7 +36,7 @@ vi.mock('../../server/lib/llm/retry.js', () => ({
 }));
 
 import { ClaudeAdapter } from '../../server/lib/llm/claude-adapter.js';
-import type { ModelConfig, LLMRequest } from '../../server/lib/llm/types.js';
+import type { ModelConfig, LLMRequest, ToolDefinition } from '../../server/lib/llm/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -233,6 +233,7 @@ describe('ClaudeAdapter — generate()', () => {
       model: 'claude-sonnet-4-20250514',
       usage: { inputTokens: 10, outputTokens: 20 },
       finishReason: 'end_turn',
+      stopReason: 'end_turn',
     });
   });
 
@@ -477,5 +478,227 @@ describe('ClaudeAdapter — classify()', () => {
     const callArgs = mockCreate.mock.calls[0][0];
     const userMessage = callArgs.messages[0].content;
     expect(userMessage).toContain('A, B, C');
+  });
+});
+
+// ==========================================================================
+// TOOL USE — tools passed through to API
+// ==========================================================================
+
+const TEST_TOOLS: ToolDefinition[] = [
+  {
+    name: 'search_documents',
+    description: 'Search claim documents',
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'calculate_benefit',
+    description: 'Calculate TD rate',
+    inputSchema: {
+      type: 'object',
+      properties: { awe: { type: 'number' } },
+      required: ['awe'],
+    },
+  },
+];
+
+describe('ClaudeAdapter — tool use', () => {
+  let adapter: ClaudeAdapter;
+
+  beforeEach(() => {
+    process.env['ANTHROPIC_API_KEY'] = 'test-key-123';
+    adapter = new ClaudeAdapter(TEST_CONFIG);
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env['ANTHROPIC_API_KEY'];
+  });
+
+  it('passes tool definitions to the API in Claude format', async () => {
+    mockCreate.mockResolvedValue(makeAnthropicResponse('No tools needed.'));
+
+    await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      tools: TEST_TOOLS,
+    });
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs.tools).toEqual([
+      {
+        name: 'search_documents',
+        description: 'Search claim documents',
+        input_schema: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'calculate_benefit',
+        description: 'Calculate TD rate',
+        input_schema: {
+          type: 'object',
+          properties: { awe: { type: 'number' } },
+          required: ['awe'],
+        },
+      },
+    ]);
+  });
+
+  it('does not include tools key when no tools provided', async () => {
+    mockCreate.mockResolvedValue(makeAnthropicResponse('Hello'));
+
+    await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty('tools');
+  });
+
+  it('parses tool_use blocks from response into toolCalls', async () => {
+    mockCreate.mockResolvedValue({
+      content: [
+        { type: 'text', text: 'Let me search for that.' },
+        {
+          type: 'tool_use',
+          id: 'toolu_01ABC',
+          name: 'search_documents',
+          input: { query: 'medical report' },
+        },
+      ],
+      usage: { input_tokens: 50, output_tokens: 30 },
+      stop_reason: 'tool_use',
+    });
+
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'find the medical report' }],
+      tools: TEST_TOOLS,
+    });
+
+    expect(response.toolCalls).toEqual([
+      {
+        id: 'toolu_01ABC',
+        name: 'search_documents',
+        input: { query: 'medical report' },
+      },
+    ]);
+    expect(response.stopReason).toBe('tool_use');
+    expect(response.finishReason).toBe('tool_use');
+    expect(response.content).toBe('Let me search for that.');
+  });
+
+  it('handles multiple tool_use blocks', async () => {
+    mockCreate.mockResolvedValue({
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_01',
+          name: 'search_documents',
+          input: { query: 'report' },
+        },
+        {
+          type: 'tool_use',
+          id: 'toolu_02',
+          name: 'calculate_benefit',
+          input: { awe: 1000 },
+        },
+      ],
+      usage: { input_tokens: 40, output_tokens: 20 },
+      stop_reason: 'tool_use',
+    });
+
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      tools: TEST_TOOLS,
+    });
+
+    expect(response.toolCalls).toHaveLength(2);
+    expect(response.toolCalls![0].name).toBe('search_documents');
+    expect(response.toolCalls![1].name).toBe('calculate_benefit');
+  });
+
+  it('does not include toolCalls when response has no tool_use blocks', async () => {
+    mockCreate.mockResolvedValue(makeAnthropicResponse('Plain answer'));
+
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      tools: TEST_TOOLS,
+    });
+
+    expect(response.toolCalls).toBeUndefined();
+    expect(response.stopReason).toBe('end_turn');
+  });
+
+  it('adds tool_result blocks as user message when toolResults provided', async () => {
+    mockCreate.mockResolvedValue(makeAnthropicResponse('Based on the search results...'));
+
+    await adapter.generate({
+      messages: [{ role: 'user', content: 'find the report' }],
+      tools: TEST_TOOLS,
+      toolResults: [
+        { toolCallId: 'toolu_01ABC', content: 'Found: Medical report dated 2025-01-15' },
+      ],
+    });
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const lastMessage = callArgs.messages[callArgs.messages.length - 1];
+    expect(lastMessage.role).toBe('user');
+    expect(lastMessage.content).toEqual([
+      {
+        type: 'tool_result',
+        tool_use_id: 'toolu_01ABC',
+        content: 'Found: Medical report dated 2025-01-15',
+      },
+    ]);
+  });
+
+  it('adds multiple tool_result blocks in one user message', async () => {
+    mockCreate.mockResolvedValue(makeAnthropicResponse('Combined results...'));
+
+    await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      tools: TEST_TOOLS,
+      toolResults: [
+        { toolCallId: 'toolu_01', content: 'Result A' },
+        { toolCallId: 'toolu_02', content: 'Result B' },
+      ],
+    });
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const lastMessage = callArgs.messages[callArgs.messages.length - 1];
+    expect(lastMessage.content).toHaveLength(2);
+    expect(lastMessage.content[0].tool_use_id).toBe('toolu_01');
+    expect(lastMessage.content[1].tool_use_id).toBe('toolu_02');
+  });
+
+  it('populates stopReason on every response', async () => {
+    mockCreate.mockResolvedValue(makeAnthropicResponse('Done', 'end_turn'));
+
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+
+    expect(response.stopReason).toBe('end_turn');
+  });
+
+  it('populates stopReason as max_tokens when applicable', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'truncated...' }],
+      usage: { input_tokens: 10, output_tokens: 4096 },
+      stop_reason: 'max_tokens',
+    });
+
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+
+    expect(response.stopReason).toBe('max_tokens');
+    expect(response.finishReason).toBe('max_tokens');
   });
 });

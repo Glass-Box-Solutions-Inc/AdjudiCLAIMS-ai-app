@@ -10,4 +10,7 @@ export {
   type LLMRequest,
   type LLMResponse,
   type LLMUsage,
+  type ToolDefinition,
+  type ToolCall,
+  type ToolResult,
 } from './types.js';

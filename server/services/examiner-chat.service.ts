@@ -23,6 +23,7 @@ import { logAuditEvent } from '../middleware/audit.js';
 import { hybridSearch } from './hybrid-search.service.js';
 import { queryGraphForExaminer, formatGraphContext } from './graph/examiner-graph-access.service.js';
 import { getClaimGraphSummary } from './graph/graph-traversal.service.js';
+import { EXAMINER_TOOLS, executeTool } from './chat-tools.service.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -320,22 +321,44 @@ export async function processExaminerChat(
     );
   }
 
-  // Stage 2: RAG retrieval + LLM generation
+  // Stage 2: RAG retrieval + LLM generation (with agentic tool-use loop)
   const citations = await retrieveContext(claimId, message);
   const contextString = buildContextString(citations);
 
   const adapter = getLLMAdapter('FREE');
-  const llmResponse = await adapter.generate({
+  const initialRequest = {
     systemPrompt: EXAMINER_CASE_CHAT_PROMPT,
     messages: [
       {
-        role: 'user',
+        role: 'user' as const,
         content: `${graphContext ? `${graphContext}\n\n` : ''}## CLAIM DOCUMENTS\n${contextString}\n\n## EXAMINER QUESTION\n${message}`,
       },
     ],
     temperature: 0.3,
     maxTokens: 4096,
-  });
+    tools: EXAMINER_TOOLS,
+  };
+
+  let llmResponse = await adapter.generate(initialRequest);
+
+  // Agentic loop: if LLM requests tool use, execute and continue
+  const MAX_TOOL_ROUNDS = 3;
+  let toolRounds = 0;
+
+  while (llmResponse.toolCalls?.length && toolRounds < MAX_TOOL_ROUNDS) {
+    toolRounds++;
+    const toolResults = await Promise.all(
+      llmResponse.toolCalls.map(async (tc) => ({
+        toolCallId: tc.id,
+        content: await executeTool(tc, claimId, classification.zone),
+      })),
+    );
+
+    llmResponse = await adapter.generate({
+      ...initialRequest,
+      toolResults,
+    });
+  }
 
   let responseContent = llmResponse.content;
 
