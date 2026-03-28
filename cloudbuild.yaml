@@ -144,17 +144,8 @@ steps:
     id: deploy-worker-llm
     waitFor: ['docker-push']
 
-  # ---- Step 11: Run database migrations ----
-  - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        gcloud run jobs execute adjudiclaims-migrate \
-          --region=${_REGION} \
-          --wait
-    id: migrate
-    waitFor: ['deploy-api']
+  # Note: Database migrations run via `npx prisma migrate deploy` manually
+  # or via a dedicated Cloud Run job (adjudiclaims-migrate) when created.
 
 timeout: 1200s
 options:
