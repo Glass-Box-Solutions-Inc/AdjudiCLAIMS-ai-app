@@ -98,7 +98,7 @@ steps:
       - '--memory=1Gi'
       - '--cpu=1'
       - '--set-secrets=DATABASE_URL=adjudiclaims-database-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SESSION_SECRET=adjudiclaims-session-secret:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
-      - '--set-env-vars=NODE_ENV=production,PORT=4901,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${_IMAGE_TAG}'
+      - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${_IMAGE_TAG}'
     id: deploy-api
     waitFor: ['docker-push']
 
