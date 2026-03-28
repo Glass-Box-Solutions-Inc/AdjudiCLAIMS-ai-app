@@ -96,7 +96,7 @@ export function validateEnv(): Env {
     ...process.env,
     // Provide test defaults
     ...(isTest && !process.env['DATABASE_URL']
-      ? { DATABASE_URL: 'postgresql://test:test@localhost:5432/test' }
+      ? { DATABASE_URL: 'mysql://test:test@localhost:3306/test' }
       : {}),
   };
 

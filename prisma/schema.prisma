@@ -15,7 +15,7 @@ generator client {
 }
 
 datasource db {
-  provider     = "postgresql"
+  provider     = "mysql"
   url          = env("DATABASE_URL")
   relationMode = "prisma"
 }
@@ -624,7 +624,7 @@ model DocumentChunk {
 
   // Relations
   document    Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  parentChunk DocumentChunk? @relation("ChunkParent", fields: [parentChunkId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  parentChunk DocumentChunk? @relation("ChunkParent", fields: [parentChunkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   childChunks DocumentChunk[] @relation("ChunkParent")
 
   @@index([documentId], map: "idx_document_chunks_document_id")
@@ -1076,8 +1076,8 @@ model GraphEdge {
 
   // Relations
   claim      Claim     @relation(fields: [claimId], references: [id])
-  sourceNode GraphNode @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  targetNode GraphNode @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sourceNode GraphNode @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  targetNode GraphNode @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([claimId, edgeType], map: "idx_graph_edges_claim_type")
   @@index([sourceNodeId], map: "idx_graph_edges_source")

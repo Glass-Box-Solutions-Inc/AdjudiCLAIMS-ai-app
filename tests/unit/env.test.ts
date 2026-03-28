@@ -36,14 +36,14 @@ describe('Environment Validation', () => {
       // DATABASE_URL not set — test mode provides default
       const env = validateEnv();
       expect(env.NODE_ENV).toBe('test');
-      expect(env.DATABASE_URL).toBe('postgresql://test:test@localhost:5432/test');
+      expect(env.DATABASE_URL).toBe('mysql://test:test@localhost:3306/test');
     });
 
     it('validates with explicit DATABASE_URL', () => {
       process.env['NODE_ENV'] = 'test';
-      process.env['DATABASE_URL'] = 'postgresql://user:pass@host:5432/db';
+      process.env['DATABASE_URL'] = 'mysql://user:pass@host:3306/db';
       const env = validateEnv();
-      expect(env.DATABASE_URL).toBe('postgresql://user:pass@host:5432/db');
+      expect(env.DATABASE_URL).toBe('mysql://user:pass@host:3306/db');
     });
 
     it('caches result after first call', () => {
@@ -106,14 +106,14 @@ describe('Environment Validation', () => {
 
     it('throws when production mode lacks SESSION_SECRET', () => {
       process.env['NODE_ENV'] = 'production';
-      process.env['DATABASE_URL'] = 'postgresql://prod:pass@host:5432/db';
+      process.env['DATABASE_URL'] = 'mysql://prod:pass@host:3306/db';
       delete process.env['SESSION_SECRET'];
       expect(() => validateEnv()).toThrow('SESSION_SECRET is required in production');
     });
 
     it('succeeds in production with valid SESSION_SECRET', () => {
       process.env['NODE_ENV'] = 'production';
-      process.env['DATABASE_URL'] = 'postgresql://prod:pass@host:5432/db';
+      process.env['DATABASE_URL'] = 'mysql://prod:pass@host:3306/db';
       process.env['SESSION_SECRET'] = 'a'.repeat(32);
       const env = validateEnv();
       expect(env.NODE_ENV).toBe('production');
@@ -180,7 +180,7 @@ describe('Environment Validation', () => {
       delete process.env['DATABASE_URL'];
       const env = validateEnv();
       // Should use test defaults
-      expect(env.DATABASE_URL).toBe('postgresql://test:test@localhost:5432/test');
+      expect(env.DATABASE_URL).toBe('mysql://test:test@localhost:3306/test');
     });
   });
 
