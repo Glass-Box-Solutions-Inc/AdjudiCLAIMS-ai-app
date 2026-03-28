@@ -24,6 +24,7 @@ steps:
       - '-c'
       - |
         npm ci --legacy-peer-deps --ignore-scripts 2>&1 || true
+        rm -rf node_modules/@adjudica/document-classifier
         mkdir -p node_modules/@adjudica/document-classifier/dist
         echo '{"name":"@adjudica/document-classifier","version":"1.0.0","main":"dist/index.js","types":"dist/index.d.ts"}' > node_modules/@adjudica/document-classifier/package.json
         echo 'module.exports = { DocumentClassifier: class { classify() { return { documentType: null, documentSubtype: null, confidence: 0, aiReasoning: "", documentDate: null }; } }, getExtractionFields: () => null, buildExtractionResponseSchema: () => ({}), buildExtractionPrompt: () => "" };' > node_modules/@adjudica/document-classifier/dist/index.js
