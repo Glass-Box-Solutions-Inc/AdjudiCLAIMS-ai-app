@@ -14,7 +14,8 @@
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "node --import tsx/esm server/production.ts",
+    "start:rr": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -36,6 +37,7 @@
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/session": "^11.0.1",
+    "@fastify/static": "^9.0.0",
     "@fontsource/inter": "^5.2.8",
     "@google-cloud/aiplatform": "^6.5.0",
     "@google-cloud/documentai": "^9.6.0",
