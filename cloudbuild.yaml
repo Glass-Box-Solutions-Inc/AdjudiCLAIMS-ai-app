@@ -9,10 +9,18 @@
 substitutions:
   _REGION: us-west1
   _ARTIFACT_REGISTRY: us-west1-docker.pkg.dev/adjudica-internal/adjudiclaims
-  _SERVICE_NAME: adjudiclaims-api
+  _ENVIRONMENT: production
   _IMAGE_TAG: latest
+  # Service names are environment-prefixed for isolation
+  _SERVICE_NAME: adjudiclaims-api
   _WORKER_DOC_SERVICE: adjudiclaims-worker-document
   _WORKER_LLM_SERVICE: adjudiclaims-worker-llm
+  # Secret names are environment-specific — production and staging NEVER share a database
+  _DB_SECRET: adjudiclaims-db-url
+  _ANTHROPIC_SECRET: adjudiclaims-anthropic-key
+  _SESSION_SECRET: adjudiclaims-session-secret
+  _SENTRY_SECRET: adjudiclaims-sentry-dsn
+  _TEMPORAL_SECRET: adjudiclaims-temporal-api-key
 
 steps:
   # ---- Step 1: Install dependencies ----
@@ -97,8 +105,8 @@ steps:
       - '--max-instances=10'
       - '--memory=1Gi'
       - '--cpu=1'
-      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SESSION_SECRET=adjudiclaims-session-secret:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
-      - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${_IMAGE_TAG}'
+      - '--set-secrets=DATABASE_URL=${_DB_SECRET}:latest,ANTHROPIC_API_KEY=${_ANTHROPIC_SECRET}:latest,SESSION_SECRET=${_SESSION_SECRET}:latest,SENTRY_DSN=${_SENTRY_SECRET}:latest,TEMPORAL_API_KEY=${_TEMPORAL_SECRET}:latest'
+      - '--set-env-vars=NODE_ENV=${_ENVIRONMENT},TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=${_ENVIRONMENT},SENTRY_RELEASE=${_IMAGE_TAG}'
     id: deploy-api
     waitFor: ['docker-push']
 
@@ -118,8 +126,8 @@ steps:
       - '--no-cpu-throttling'
       - '--command=npx'
       - '--args=tsx,server/temporal/document/worker.ts'
-      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
-      - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${_IMAGE_TAG}'
+      - '--set-secrets=DATABASE_URL=${_DB_SECRET}:latest,ANTHROPIC_API_KEY=${_ANTHROPIC_SECRET}:latest,SENTRY_DSN=${_SENTRY_SECRET}:latest,TEMPORAL_API_KEY=${_TEMPORAL_SECRET}:latest'
+      - '--set-env-vars=NODE_ENV=${_ENVIRONMENT},TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=${_ENVIRONMENT},SENTRY_RELEASE=${_IMAGE_TAG}'
     id: deploy-worker-document
     waitFor: ['docker-push']
 
@@ -139,8 +147,8 @@ steps:
       - '--no-cpu-throttling'
       - '--command=npx'
       - '--args=tsx,server/temporal/llm/worker.ts'
-      - '--set-secrets=DATABASE_URL=adjudiclaims-db-url:latest,ANTHROPIC_API_KEY=adjudiclaims-anthropic-key:latest,SENTRY_DSN=adjudiclaims-sentry-dsn:latest,TEMPORAL_API_KEY=adjudiclaims-temporal-api-key:latest'
-      - '--set-env-vars=NODE_ENV=production,TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=production,SENTRY_RELEASE=${_IMAGE_TAG}'
+      - '--set-secrets=DATABASE_URL=${_DB_SECRET}:latest,ANTHROPIC_API_KEY=${_ANTHROPIC_SECRET}:latest,SENTRY_DSN=${_SENTRY_SECRET}:latest,TEMPORAL_API_KEY=${_TEMPORAL_SECRET}:latest'
+      - '--set-env-vars=NODE_ENV=${_ENVIRONMENT},TEMPORAL_ADDRESS=${_TEMPORAL_ADDRESS},TEMPORAL_NAMESPACE=adjudiclaims,SENTRY_ENVIRONMENT=${_ENVIRONMENT},SENTRY_RELEASE=${_IMAGE_TAG}'
     id: deploy-worker-llm
     waitFor: ['docker-push']
 
