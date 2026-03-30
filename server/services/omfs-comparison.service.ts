@@ -87,6 +87,9 @@ const OMFS_DISCLAIMER =
  * is live, this table will be replaced by live KB lookups.
  */
 const STUB_OMFS_RATES: Record<string, { rate: number; description: string; section: string }> = {
+  // -------------------------------------------------------------------------
+  // Existing entries (unchanged)
+  // -------------------------------------------------------------------------
   '99213': { rate: 78.42, description: 'Office visit, established patient, low complexity', section: 'RBRVS' },
   '99214': { rate: 117.63, description: 'Office visit, established patient, moderate complexity', section: 'RBRVS' },
   '97110': { rate: 42.15, description: 'Therapeutic exercises, each 15 min', section: 'RBRVS' },
@@ -99,6 +102,66 @@ const STUB_OMFS_RATES: Record<string, { rate: number; description: string; secti
   '99203': { rate: 135.50, description: 'New patient visit, low complexity', section: 'RBRVS' },
   '27447': { rate: 1245.00, description: 'Total knee arthroplasty', section: 'RBRVS' },
   '29881': { rate: 685.00, description: 'Knee arthroscopy with meniscectomy', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Evaluation & Management — New patient visits (99201–99205)
+  // -------------------------------------------------------------------------
+  '99201': { rate: 58.15, description: 'New patient office visit, minimal complexity', section: 'RBRVS' },
+  '99202': { rate: 95.20, description: 'New patient office visit, straightforward complexity', section: 'RBRVS' },
+  // 99203 already exists
+  '99204': { rate: 183.75, description: 'New patient office visit, moderate complexity', section: 'RBRVS' },
+  '99205': { rate: 236.40, description: 'New patient office visit, high complexity', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Evaluation & Management — Established patient visits (99211–99215)
+  // -------------------------------------------------------------------------
+  '99211': { rate: 24.10, description: 'Office visit, established patient, minimal (nurse)', section: 'RBRVS' },
+  '99212': { rate: 48.35, description: 'Office visit, established patient, straightforward', section: 'RBRVS' },
+  // 99213 and 99214 already exist
+  '99215': { rate: 158.40, description: 'Office visit, established patient, high complexity', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Evaluation & Management — Consultations (99241–99245)
+  // -------------------------------------------------------------------------
+  '99241': { rate: 62.50, description: 'Office consultation, minimal complexity', section: 'RBRVS' },
+  '99242': { rate: 108.75, description: 'Office consultation, straightforward complexity', section: 'RBRVS' },
+  '99243': { rate: 152.30, description: 'Office consultation, low complexity', section: 'RBRVS' },
+  '99244': { rate: 218.60, description: 'Office consultation, moderate complexity', section: 'RBRVS' },
+  '99245': { rate: 284.90, description: 'Office consultation, high complexity', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Physical Therapy (additional codes)
+  // -------------------------------------------------------------------------
+  '97112': { rate: 41.20, description: 'Neuromuscular re-education, each 15 min', section: 'RBRVS' },
+  '97116': { rate: 38.45, description: 'Gait training, each 15 min', section: 'RBRVS' },
+  '97150': { rate: 28.60, description: 'Therapeutic procedure, group (2+ patients)', section: 'RBRVS' },
+  '97542': { rate: 44.10, description: 'Wheelchair management/propulsion training, each 15 min', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Injections (additional codes)
+  // -------------------------------------------------------------------------
+  '64493': { rate: 198.40, description: 'Injection, paravertebral facet joint, lumbar/sacral', section: 'RBRVS' },
+  '20552': { rate: 88.25, description: 'Injection, trigger point, 1 or 2 muscles', section: 'RBRVS' },
+  '20553': { rate: 102.15, description: 'Injection, trigger point, 3 or more muscles', section: 'RBRVS' },
+  '62322': { rate: 245.80, description: 'Injection, lumbar or sacral epidural (without imaging)', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Imaging (additional codes)
+  // -------------------------------------------------------------------------
+  '72146': { rate: 287.20, description: 'MRI thoracic spine without contrast', section: 'RBRVS' },
+  '73221': { rate: 310.50, description: 'MRI joint of upper extremity (shoulder/knee), without contrast', section: 'RBRVS' },
+  '73721': { rate: 318.75, description: 'MRI joint of lower extremity (hip), without contrast', section: 'RBRVS' },
+  '70553': { rate: 425.00, description: 'MRI brain with and without contrast', section: 'RBRVS' },
+  '72131': { rate: 265.40, description: 'CT lumbar spine without contrast', section: 'RBRVS' },
+
+  // -------------------------------------------------------------------------
+  // Surgery — Common Workers' Compensation procedures (additional codes)
+  // -------------------------------------------------------------------------
+  '63030': { rate: 1480.25, description: 'Laminotomy with decompression, lumbar (single level)', section: 'RBRVS' },
+  '63047': { rate: 1685.50, description: 'Laminectomy, lumbar, single segment', section: 'RBRVS' },
+  '22612': { rate: 2340.00, description: 'Lumbar arthrodesis (fusion), posterior/posterolateral', section: 'RBRVS' },
+  '29827': { rate: 1124.75, description: 'Arthroscopy, shoulder, surgical — rotator cuff repair', section: 'RBRVS' },
+  '64721': { rate: 565.30, description: 'Neuroplasty/carpal tunnel release, median nerve', section: 'RBRVS' },
 };
 
 const STUB_EFFECTIVE_DATE = '2026-01-01';
