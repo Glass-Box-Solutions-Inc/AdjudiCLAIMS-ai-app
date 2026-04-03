@@ -210,17 +210,17 @@
       <div class="zone-def">Factual information directly sourced from claim documents, statutory tables, or mathematical calculation. No legal judgment required.</div>
       <ul class="zone-list">
         <li>Summarize medical record findings (diagnoses, WPI%, restrictions)</li>
-        <li>Calculate TD rate from AWE (LC 4453 formula)</li>
-        <li>Display payment schedule and amounts due</li>
-        <li>Identify regulatory deadlines with statutory citations</li>
-        <li>Extract ICD-10 codes from reports</li>
+        <li>Calculate TD rate from AWE (LC 4453: AWE × 2/3)</li>
+        <li>Display TD payment schedule and flag late payments (LC 4650 / SB 1234)</li>
+        <li>Track 40-day determination clock from DWC-1 receipt date (10 CCR 2695.7(b))</li>
+        <li>Track 15-day DWC-1 acknowledgment deadline (10 CCR 2695.5(b))</li>
+        <li>Flag 5-business-day UR deadline with remaining days (8 CCR 9792.9)</li>
+        <li>Track 20-day P&amp;S report objection window (LC 4061)</li>
+        <li>Display 90-day compensability presumption clock (LC 5402(b))</li>
+        <li>Extract ICD-10 codes and WPI% from QME/AME reports</li>
         <li>Show MTUS guideline recommendations by body part</li>
-        <li>Summarize lien amounts and claimant information</li>
         <li>Generate investigation checklist from uploaded documents</li>
-        <li>Show claim timeline with document sources</li>
-        <li>Explain statutory terms with code citations</li>
         <li>Calculate OMFS maximum fee schedule amounts</li>
-        <li>Display QME/AME findings with source citation</li>
       </ul>
       <span class="legal-chip">Authority: Cal. Lab. Code §§ 4453, 4650, 4600 et seq. — factual processing and calculation, not legal practice</span>
     </div>
@@ -540,39 +540,81 @@
         </tr>
         <tr>
           <td><span class="code">Cal. Lab. Code</span></td>
+          <td>§ 5401</td>
+          <td>DWC-1 Claim Form — Employer Provision</td>
+          <td>Employer must provide the DWC-1 within 1 working day of notice or knowledge of injury. Failure: $1,000 civil penalty. Tracked from date of injury report.</td>
+        </tr>
+        <tr>
+          <td><span class="code">Cal. Lab. Code</span></td>
           <td>§ 4650</td>
-          <td>Temporary Disability Payment Deadline</td>
-          <td>14-day payment deadline tracked. Late payment trigger: 10% self-imposed increase (§ 4650(d)).</td>
+          <td>Temporary Disability — First Payment Deadline</td>
+          <td>First TD payment due within 14 calendar days of employer's knowledge of injury and disability. Late payment triggers a mandatory self-imposed 10% increase per § 4650(c) — rising to 15% effective July 1, 2026 (SB 1234). Every subsequent payment due every 14 days without interruption.</td>
+        </tr>
+        <tr>
+          <td><span class="code">10 CCR</span></td>
+          <td>§ 2695.5(b)</td>
+          <td>DWC-1 Acknowledgment — 15 Calendar Days</td>
+          <td>Written acknowledgment of DWC-1 receipt required within 15 calendar days. Each missed acknowledgment is a separate DOI audit violation. Tracked from date of DWC-1 receipt.</td>
         </tr>
         <tr>
           <td><span class="code">Cal. Lab. Code</span></td>
           <td>§ 4061</td>
-          <td>QME/AME Benefit Notice</td>
-          <td>90-day notice deadline tracked. Permanent disability evaluation trigger.</td>
+          <td>P&amp;S Report Objection — 20 Calendar Days</td>
+          <td>Written objection to a Permanent &amp; Stationary (P&amp;S) report must be filed within 20 days of receipt. Missing this window can lock in an unfavorable WPI rating and permanent disability calculation. Tracked from document receipt date.</td>
+        </tr>
+        <tr>
+          <td><span class="code">8 CCR</span></td>
+          <td>§ 9792.9</td>
+          <td>Prospective Utilization Review — 5 Business Days</td>
+          <td>UR decision on prospective treatment requests must be issued within 5 business days of receiving a complete Request for Authorization (RFA). A missed deadline invalidates the UR determination — treatment is deemed authorized by operation of law. Most scrutinized UR timeliness rule.</td>
+        </tr>
+        <tr>
+          <td><span class="code">10 CCR</span></td>
+          <td>§ 2695.7(b) / 8 CCR § 10111</td>
+          <td>Claim Determination — 40 Calendar Days</td>
+          <td>Accept, deny, or issue a documented delay notice within 40 calendar days of receiving the completed DWC-1. Violation = unfair claims practice under Cal. Ins. Code § 790.03(h)(5). Triggers the 90-day compensability presumption under LC 5402(b).</td>
+        </tr>
+        <tr>
+          <td><span class="code">Cal. Lab. Code</span></td>
+          <td>§ 5402(b)</td>
+          <td>Compensability Presumption — 90 Calendar Days</td>
+          <td>If no denial is issued within 90 days of the employer's knowledge of injury, the claim is presumed compensable by operation of law. This is the most consequential administrative deadline in WC claims handling. The burden shifts to the insurer to rebut the presumption.</td>
+        </tr>
+        <tr>
+          <td><span class="code">10 CCR</span></td>
+          <td>§ 2695.7(c)</td>
+          <td>Delay Notice Update — Every 30 Calendar Days</td>
+          <td>If a claim determination cannot be made by day 40, a written delay notice must be sent before day 40 and every 30 days thereafter until a final determination issues. Each missed delay letter is a separate audit violation — not merely one finding.</td>
+        </tr>
+        <tr>
+          <td><span class="code">Cal. Lab. Code</span></td>
+          <td>§ 5814</td>
+          <td>Unreasonable Delay Penalty</td>
+          <td>Any compensation unreasonably delayed or withheld is subject to a 25% increase up to $10,000 — on top of the amount owed. This applies to TD, PD, medical treatment, and other benefits. AI does not determine "unreasonableness" — that is a legal question referred to defense counsel.</td>
         </tr>
         <tr>
           <td><span class="code">Cal. Lab. Code</span></td>
           <td>§ 4453</td>
-          <td>AWE Calculation Formula</td>
-          <td>Benefit calculator implements statutory formula: AWE × 2/3, bounded by min/max.</td>
+          <td>Average Weekly Earnings — TD Rate Formula</td>
+          <td>Benefit calculator implements AWE × 2/3 statutory formula, bounded by annual statutory min/max. All calculations show formula and cite LC 4453. Arithmetic is GREEN zone — no legal judgment required.</td>
         </tr>
         <tr>
           <td><span class="code">CCR Title 8</span></td>
           <td>§ 9785</td>
-          <td>Primary Treating Physician reporting</td>
-          <td>PR-1/PR-2/PR-3/PR-4 form deadlines tracked and displayed.</td>
+          <td>Primary Treating Physician Reports</td>
+          <td>Initial medical report due within 5 days of initial treatment. PR-2 reports due within 5 days of any significant change in condition or work status. Work status changes trigger TD adjustments — tracked automatically.</td>
         </tr>
         <tr>
           <td><span class="code">CCR Title 8</span></td>
-          <td>§§ 9792.5–9792.27</td>
-          <td>Medical Treatment Utilization Schedule (MTUS)</td>
-          <td>MTUS guideline lookup integrated for treatment authorization requests.</td>
+          <td>§§ 9792.6–9792.12</td>
+          <td>Utilization Review Program</td>
+          <td>UR program requirements and timeframes. Prospective UR: 5 business days (§ 9792.9). Retrospective UR: 30 calendar days (§ 9792.10). IMR request by worker: 30 days from UR decision (§ 9792.12). All tracked with remaining-days display.</td>
         </tr>
         <tr>
           <td><span class="code">CCR Title 8</span></td>
           <td>§ 9789.10 et seq.</td>
           <td>Official Medical Fee Schedule (OMFS)</td>
-          <td>OMFS fee schedule comparison built into medical billing overview.</td>
+          <td>OMFS fee schedule comparison built into medical billing overview. Current schedule rates including April 2026 update (physical therapy: CPT 97110 at $44.17/unit).</td>
         </tr>
         <tr>
           <td><span class="code">45 CFR §§ 164</span></td>
