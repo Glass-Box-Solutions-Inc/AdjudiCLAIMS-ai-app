@@ -222,30 +222,37 @@
             <div class="query-list">
               <div class="query-item">What WPI did the QME assign for the lumbar spine?</div>
               <div class="query-item">What is the TD rate for this claimant?</div>
-              <div class="query-item">When is the first TD payment due?</div>
+              <div class="query-item">When is the first TD payment due, and what happens if it is late?</div>
+              <div class="query-item">How many days remain before the 40-day determination deadline?</div>
+              <div class="query-item">What is the deadline to object to the P&amp;S report received today?</div>
+              <div class="query-item">Has the prospective UR deadline passed for the pending RFA?</div>
               <div class="query-item">What diagnoses appear in the treating physician report?</div>
-              <div class="query-item">Summarize the medical records from March 2025</div>
               <div class="query-item">Has three-point contact been completed?</div>
             </div>
           </div>
           <div class="panel-col">
-            <h3>Example AI response</h3>
+            <h3>Example AI responses</h3>
             <div class="response-example">
               <div class="response-bubble green-bubble">
-                <div class="response-label green-label">● GREEN — Factual Response</div>
-                <div class="response-text">The QME report dated 2025-03-01 (Dr. Chen, page 4) assigns 12% Whole Person Impairment for the lumbar spine, citing AMA Guides 5th Edition Table 15-3.</div>
-                <div class="citation">Source: QME_Report_Chen_20250301.pdf · Page 4 · Extracted with 0.91 confidence</div>
+                <div class="response-label green-label">● GREEN — Deadline Tracking</div>
+                <div class="response-text">The 40-day determination clock started on the DWC-1 receipt date (2026-03-15). You have <strong>12 calendar days remaining</strong> to accept, deny, or issue a documented delay notice. Missing this deadline can trigger the 90-day compensability presumption under LC 5402(b), shifting the burden to rebut compensability.</div>
+                <div class="citation">Authority: 10 CCR § 2695.7(b) · LC § 5402(b)</div>
               </div>
               <div class="response-bubble green-bubble" style="margin-top:12px;">
-                <div class="response-label green-label">● GREEN — Benefit Calculation</div>
-                <div class="response-text">TD Rate = 2/3 × $1,200 AWE = $800.00/week. Within statutory bounds for 2025 ($252.43 min / $1,761.71 max per LC 4653). First payment due 14 days from employer knowledge of injury (LC 4650(a)).</div>
-                <div class="citation">Formula: Labor Code § 4653 · 2025 statutory min/max</div>
+                <div class="response-label green-label">● GREEN — P&amp;S Objection Window</div>
+                <div class="response-text">The P&amp;S report was received today (2026-03-27). Under LC 4061, you have <strong>20 calendar days</strong> — until 2026-04-16 — to file a written objection if you dispute the WPI rating. Missing this window may lock in the reported 12% WPI for PD calculation purposes.</div>
+                <div class="citation">Authority: Labor Code § 4061</div>
+              </div>
+              <div class="response-bubble green-bubble" style="margin-top:12px;">
+                <div class="response-label green-label">● GREEN — Late Payment Consequence</div>
+                <div class="response-text">The first TD payment of $800.00/week was due 14 days from the date of employer knowledge (2026-03-01). Payment today (2026-03-20) is 5 days late. A self-imposed 10% increase ($80.00) must be added per LC 4650(c). <strong>Note:</strong> SB 1234 raises this to 15% effective July 1, 2026.</div>
+                <div class="citation">Authority: Labor Code § 4650(c) · SB 1234 (effective July 1, 2026)</div>
               </div>
             </div>
           </div>
         </div>
         <div style="margin-top:24px; padding-top:20px; border-top: 1px solid var(--border); font-size:0.875rem; color:var(--text-muted);">
-          <strong style="color:var(--text);">Permitted GREEN zone features:</strong> Medical record summarization, WPI/diagnosis extraction, benefit calculations, regulatory deadline tracking, document classification, claim chronologies, investigation checklist status, MTUS guideline matching, letter drafting (administrative only).
+          <strong style="color:var(--text);">Permitted GREEN zone features:</strong> Medical record summarization, WPI/diagnosis extraction, benefit calculations, statutory deadline tracking with consequence callouts, document classification, claim chronologies, investigation checklist status, MTUS guideline matching, letter drafting (administrative only).
         </div>
       </div>
     </div>

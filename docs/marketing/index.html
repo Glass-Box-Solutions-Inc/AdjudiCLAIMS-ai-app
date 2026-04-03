@@ -221,8 +221,8 @@
       </div>
       <div class="problem-item">
         <div class="problem-stat">$$$</div>
-        <div class="problem-label">DOI Audit Findings</div>
-        <div class="problem-desc">Missed 15-day, 40-day, and 14-day payment deadlines generate audit findings, penalties, and bad faith exposure under Cal. Ins. Code § 790.03(h).</div>
+        <div class="problem-label">Cascading Deadline Penalties</div>
+        <div class="problem-desc">Miss the 40-day determination deadline (10 CCR 2695.7(b)) and the claim is presumed compensable under LC 5402(b). Miss a TD payment and a self-imposed 10% penalty triggers automatically — rising to 15% July 2026 (SB 1234). Miss a UR deadline and treatment is deemed authorized by operation of law (8 CCR 9792.9).</div>
       </div>
     </div>
   </div>
@@ -276,8 +276,17 @@
       <div class="feature-card">
         <div class="feature-icon">⏰</div>
         <h3>Regulatory Deadline Dashboard</h3>
-        <p>Every statutory deadline auto-generated at claim creation: 15-day acknowledgment, 40-day determination, 14-day first TD payment. Color-coded urgency. Every deadline cites the statute.</p>
-        <span class="feature-tag tag-green">GREEN Zone · Factual</span>
+        <p>Every claim auto-generates its full statutory deadline set — with the consequence of each miss:</p>
+        <ul style="font-size:0.82rem;color:var(--text-muted);margin:8px 0 12px;padding-left:1rem;display:flex;flex-direction:column;gap:4px;">
+          <li><strong>1 day</strong> — Provide DWC-1 (LC 5401)</li>
+          <li><strong>14 days</strong> — First TD payment or 10%→15% penalty (LC 4650 / SB 1234)</li>
+          <li><strong>15 days</strong> — Acknowledge DWC-1 receipt (10 CCR 2695.5(b))</li>
+          <li><strong>20 days</strong> — Object to P&amp;S report or WPI locks in (LC 4061)</li>
+          <li><strong>5 bus. days</strong> — Prospective UR or treatment is authorized (8 CCR 9792.9)</li>
+          <li><strong>40 days</strong> — Accept/deny/delay or presumption of compensability (LC 5402(b))</li>
+          <li><strong>30 days</strong> — Delay notice update cycle, each miss a separate violation (10 CCR 2695.7(c))</li>
+        </ul>
+        <span class="feature-tag tag-green">GREEN Zone · Factual tracking</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🧮</div>
