@@ -51,5 +51,5 @@ CLAUDE.local.md
 cloudbuild*.yaml
 Dockerfile*
 
-# Type generation artifacts
-react-router.config.ts
+# NOTE: Do NOT exclude react-router.config.ts, vite.config.ts, or tsconfig.json —
+# these are required by `npm run build` inside the container (Vite/React Router build step).
