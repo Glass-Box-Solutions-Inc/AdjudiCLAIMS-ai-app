@@ -450,6 +450,452 @@ const entries: RegulationEntry[] = [
   },
 
   // -------------------------------------------------------------------------
+  // Labor Code — Utilization Review (Statutory Authority)
+  // -------------------------------------------------------------------------
+  {
+    citation: 'LC 4610',
+    title: 'Utilization Review — Employer Obligation and Standards',
+    fullText:
+      'Labor Code § 4610 requires every insurer, self-insured employer, and claims ' +
+      'administrator to establish and maintain a Utilization Review (UR) program for ' +
+      'prospective, concurrent, and retrospective review of medical treatment requests. ' +
+      'The UR program must be consistent with the MTUS (Medical Treatment Utilization ' +
+      'Schedule) and conducted under the supervision of a licensed physician. UR is the ' +
+      'required mechanism for contesting a treating physician\'s treatment request — ' +
+      'an insurer may not deny treatment without conducting proper UR.',
+    keyRequirements: [
+      'Establish and maintain a DWC-compliant UR program before any UR decisions are made',
+      'All UR decisions must be made or reviewed by a licensed physician in the same or related specialty',
+      'Apply MTUS guidelines as the primary evidence-based standard; ACOEM and peer-reviewed literature for gaps',
+      'Issue prospective UR decisions within 5 business days of a complete RFA',
+      'Issue concurrent UR decisions for inpatients within 24 hours',
+      'Provide specific clinical reasons for any modification, delay, or denial of treatment',
+    ],
+    penalties: [
+      'UR decisions not made by a qualifying physician are void and the treatment is deemed authorized',
+      'Failure to maintain a UR program is an unfair claims practice',
+      'Untimely UR decisions may be treated as automatic approvals under 8 CCR 9792.9',
+    ],
+    relatedCitations: ['LC 4610.5', 'LC 4616', '8 CCR 9792.6', '8 CCR 9792.9', '8 CCR 9792.9.1'],
+    effectiveDate: '2004-01-01',
+    examinerRelevance:
+      'UR is the only lawful mechanism for contesting a treating physician\'s request. Never instruct a provider to change treatment without a proper UR determination. Denials without UR are per se unreasonable.',
+  },
+  {
+    citation: 'LC 4610.5',
+    title: 'Independent Medical Review — Establishment and Scope',
+    fullText:
+      'Labor Code § 4610.5 establishes the Independent Medical Review (IMR) process as ' +
+      'the exclusive remedy for challenging a UR modification, delay, or denial. The DWC ' +
+      'contracts with an independent organization to conduct IMR. An injured worker may ' +
+      'apply for IMR within 30 days of a UR adverse decision. IMR is binding on all parties ' +
+      'and replaces WCAB jurisdiction over treatment disputes.',
+    keyRequirements: [
+      'Provide IMR application materials with every UR modification, delay, or denial notice',
+      'Cooperate with the IMR reviewer — provide all requested records within required timeframes',
+      'Implement any IMR approval immediately — it is a binding order',
+      'Do not pursue WCAB adjudication of a treatment dispute that is subject to IMR',
+      'Track the 30-day employee window for requesting IMR after each UR adverse decision',
+    ],
+    penalties: [
+      'Failure to implement an IMR approval is an unfair claims practice',
+      'Ignoring IMR and pursuing WCAB adjudication instead is jurisdictionally improper',
+    ],
+    relatedCitations: ['LC 4610', 'LC 4610.6', '8 CCR 9792.12', '8 CCR 9792.13'],
+    effectiveDate: '2013-01-01',
+    examinerRelevance:
+      'IMR replaced WCAB as the forum for treatment disputes. When you issue a UR denial, provide the IMR application form. When IMR overturns you, authorize the treatment — no further contest is available within IMR.',
+  },
+  {
+    citation: 'LC 4612',
+    title: 'Utilization Review — Nurse Reviewer Limitations',
+    fullText:
+      'Labor Code § 4612 restricts UR decisions to licensed physicians and prohibits nurses, ' +
+      'claims examiners, and non-physician personnel from making UR modification, delay, or ' +
+      'denial decisions. A registered nurse may provide administrative support and gather ' +
+      'information but may not override a treating physician\'s treatment request. Only the ' +
+      'reviewing physician may sign or authorize a UR denial.',
+    keyRequirements: [
+      'Ensure all UR denial or modification decisions are signed by a licensed physician',
+      'Nurses may perform intake, triage, and information gathering — not clinical decisions',
+      'Never route a UR denial through a claims examiner review that bypasses physician sign-off',
+      'Confirm that the reviewing physician is in the same or related specialty as the treating physician',
+    ],
+    penalties: [
+      'UR denials signed by non-physicians are void — the treatment is deemed authorized',
+      'Systematic non-physician UR decisions are an unfair claims practice',
+    ],
+    relatedCitations: ['LC 4610', '8 CCR 9792.7', '8 CCR 9792.9'],
+    effectiveDate: '2004-01-01',
+    examinerRelevance:
+      'Verify your UR vendor\'s process: every adverse UR decision must carry a licensed physician\'s name and credentials. A denial without physician sign-off exposes the insurer to automatic authorization of the requested treatment.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Labor Code — Medical Provider Network (MPN)
+  // -------------------------------------------------------------------------
+  {
+    citation: 'LC 4616',
+    title: 'Medical Provider Network — Establishment and Employee Rights',
+    fullText:
+      'Labor Code § 4616 authorizes insurers and self-insured employers to establish a ' +
+      'Medical Provider Network (MPN) — a selected group of health care providers who ' +
+      'deliver medical treatment to injured workers. When a valid MPN is in place, the ' +
+      'employer\'s control over the treating physician extends beyond the initial 30-day ' +
+      'period. Injured workers in an MPN retain the right to a second and third opinion, ' +
+      'and to request a treating physician change within the MPN.',
+    keyRequirements: [
+      'MPN must be approved by the DWC and include required specialties and geographic coverage',
+      'Provide proper MPN notice to employees at time of hire and upon claim filing',
+      'Employee must use MPN providers for treatment (after 30 days, or from day one if properly notified)',
+      'Employee has the right to a second and third opinion within the MPN for disputed diagnoses',
+      'After second and third opinions, employee may request an independent MPN Medical Evaluation (IMNE)',
+      'MPN must include sufficient providers within geographic access standards',
+    ],
+    penalties: [
+      'Improperly administered MPN loses its force — employee may treat outside the network',
+      'Failure to provide proper MPN notice at hire can invalidate the MPN for that employee',
+      'Denying legitimate MPN changes or second opinions is an unfair claims practice',
+    ],
+    relatedCitations: ['LC 4616.1', 'LC 4616.2', 'LC 4616.3', '8 CCR 9767.1', '8 CCR 9767.3'],
+    effectiveDate: '2005-01-01',
+    examinerRelevance:
+      'Confirm MPN notice was provided at hire before enforcing MPN restrictions. Without proper notice, the employee may treat outside the MPN at the insurer\'s expense. Track second- and third-opinion requests with their own deadlines.',
+  },
+  {
+    citation: 'LC 4616.3',
+    title: 'MPN — Independent Medical Review of Treatment Disputes',
+    fullText:
+      'Labor Code § 4616.3 provides that disputes about treatment within an MPN that are ' +
+      'not resolved through UR and the second/third opinion process may be submitted for an ' +
+      'Independent Medical Review (IMR). This IMR process for MPN treatment disputes is ' +
+      'separate from the UR-based IMR under LC 4610.5 but similarly binding. The IMNE ' +
+      '(Independent Medical Network Evaluation) is the mechanism for resolving specialty ' +
+      'disputes about treating physician selection within the MPN.',
+    keyRequirements: [
+      'Provide proper notice of IMR rights when an MPN treatment dispute is not resolved',
+      'Distinguish between MPN-based IMR (LC 4616.3) and UR-based IMR (LC 4610.5) — different tracks',
+      'IMNE is ordered when employee disputes second/third opinion finding within MPN',
+      'Cooperate with the IMNE reviewer and provide all requested records',
+      'IMNE decision is binding on both parties regarding the disputed treatment',
+    ],
+    penalties: [
+      'Failure to implement IMNE or MPN-based IMR decisions is an unfair claims practice',
+      'Improper obstruction of MPN rights leads to employee\'s ability to treat outside MPN',
+    ],
+    relatedCitations: ['LC 4616', 'LC 4616.4', 'LC 4610.5', '8 CCR 9767.7'],
+    effectiveDate: '2005-01-01',
+    examinerRelevance:
+      'Track both UR-IMR and MPN-IMR timelines separately. MPN disputes have their own procedural pathway that, if not followed, can result in the employee obtaining treatment outside the network at insurer cost.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Labor Code — Liens
+  // -------------------------------------------------------------------------
+  {
+    citation: 'LC 4903',
+    title: 'Liens — Types and Priority',
+    fullText:
+      'Labor Code § 4903 establishes the categories of liens that may be asserted against ' +
+      'a workers\' compensation award. Priority liens include: (1) state, county, and city ' +
+      'claims for medical treatment provided; (2) claims for medical treatment provided to ' +
+      'the injured worker; (3) attorney fees and costs; (4) hospital, surgical, and nursing ' +
+      'expenses; and (5) certain EDD disability or unemployment benefits. Medical provider ' +
+      'liens must be filed timely to preserve lien rights.',
+    keyRequirements: [
+      'Identify all potential lienholders at the outset of the claim (medical providers, EDD, attorney)',
+      'Verify lien filing deadlines — medical provider liens must be filed with the WCAB within applicable periods',
+      'Do not settle the case without addressing known lien claims',
+      'Request a lien conference or lien consolidation for complex claims with multiple lienholders',
+      'Confirm lien priority order before distributing any settlement proceeds',
+      'Obtain lien releases or satisfactions at settlement to close the file cleanly',
+    ],
+    penalties: [
+      'Paying out a settlement without resolving liens creates double payment exposure',
+      'Failure to address EDD/state agency liens can result in personal liability',
+    ],
+    relatedCitations: ['LC 4903.05', 'LC 4903.1', 'LC 4904', 'LC 4905', '8 CCR 10770'],
+    effectiveDate: '2013-01-01',
+    examinerRelevance:
+      'Run a lien search at settlement. Medical providers who treated the claimant outside the authorized network may file liens — resolve them before final payment to avoid double exposure.',
+  },
+  {
+    citation: 'LC 4903.05',
+    title: 'Lien Filing — $150 Filing Fee and Activation Requirements',
+    fullText:
+      'Labor Code § 4903.05 requires medical-legal and non-attorney lienholders to pay ' +
+      'a $150 filing fee when filing a lien with the WCAB. Failure to pay the filing fee ' +
+      'results in the lien being dismissed. Additionally, lienholders must file an ' +
+      '"activation" within a specified period or the lien is deemed abandoned. These ' +
+      'provisions were enacted to reduce the volume of dormant liens on the WCAB docket.',
+    keyRequirements: [
+      'Verify that any lien presented for payment was properly filed and the $150 fee was paid',
+      'Check WCAB docket for lien activation — an unactivated lien may be subject to dismissal',
+      'Do not pay a lien that was not properly filed or that is subject to a dismissal order',
+      'Request proof of lien filing and fee payment before agreeing to pay any lien claim',
+    ],
+    penalties: [
+      'Paying an invalid or dismissed lien creates an unreimbursable overpayment',
+      'Failure to object to invalid liens at the lien conference waives the defect',
+    ],
+    relatedCitations: ['LC 4903', 'LC 4903.06', '8 CCR 10770', '8 CCR 10770.5'],
+    effectiveDate: '2013-01-01',
+    examinerRelevance:
+      'Always verify lien validity before paying. Pull the WCAB docket to confirm the lien was filed, the fee was paid, and the lien was activated. Invalid liens are not owed.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Labor Code — Permanent Disability (additional)
+  // -------------------------------------------------------------------------
+  {
+    citation: 'LC 4664',
+    title: 'Apportionment — Prior Awards and Combined Disability Limits',
+    fullText:
+      'Labor Code § 4664 provides that a prior award of permanent disability is conclusive ' +
+      'evidence that the disability existed and has been rated. When a subsequent injury ' +
+      'results in permanent disability, the prior award must be deducted to avoid double ' +
+      'compensation. Additionally, the total permanent disability from all combined injuries ' +
+      'cannot exceed 100%.',
+    keyRequirements: [
+      'Obtain all prior workers\' compensation award documentation when PD is at issue',
+      'A prior PD award is conclusive — it does not need to be re-litigated for apportionment',
+      'Calculate the net industrial PD by deducting any prior award percentage from the current WPI',
+      'Coordinate with defense counsel when multiple prior awards complicate the apportionment analysis',
+      'The 100% cap prevents over-compensation across multiple open claims',
+    ],
+    penalties: [
+      'Failure to apply prior award apportionment is an overpayment requiring recovery',
+      'Improper application of LC 4664 to non-award medical history is legally incorrect',
+    ],
+    relatedCitations: ['LC 4660', 'LC 4663', 'LC 4750'],
+    effectiveDate: '2005-01-01',
+    examinerRelevance:
+      'Query prior claims history and obtain all prior WC award documents on every PD claim. A $50K savings in PD exposure may turn on a properly applied LC 4664 prior-award deduction.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Labor Code — Temporary Disability (additional)
+  // -------------------------------------------------------------------------
+  {
+    citation: 'LC 4651',
+    title: 'TD Payment — Electronic Payment Option',
+    fullText:
+      'Labor Code § 4651 authorizes claims administrators to pay temporary disability ' +
+      'indemnity by electronic fund transfer (EFT/direct deposit) if the employee ' +
+      'consents. The injured worker has the right to receive payment by check and ' +
+      'cannot be compelled to use electronic payment. Electronic payment does not ' +
+      'alter the 14-day payment timing requirement under LC 4650.',
+    keyRequirements: [
+      'Obtain written employee consent before switching to electronic TD payments',
+      'Maintain the 14-day payment cycle regardless of payment method',
+      'Provide the employee with the option to revert to check payment upon request',
+      'Document consent form in the claim file',
+      'EFT payment date is the settlement date — ensure funds are available 14 days from the first-knowledge date',
+    ],
+    penalties: [
+      'Forcing electronic payment without consent is a payment method violation',
+      'Electronic payment does not excuse late payment — the 14-day rule still applies',
+    ],
+    relatedCitations: ['LC 4650', 'LC 4653'],
+    effectiveDate: '2003-01-01',
+    examinerRelevance:
+      'EFT can speed up payment processing but requires documented consent. For the 14-day deadline, confirm the EFT will settle in the employee\'s account within the window — initiation date is not settlement date.',
+  },
+  {
+    citation: 'LC 4657',
+    title: 'TD Rate — Earnings Computation for Irregular Employment',
+    fullText:
+      'Labor Code § 4657 provides an alternative AWE calculation for employees with ' +
+      'irregular, seasonal, or part-time employment histories where the standard 52-week ' +
+      'average under LC 4453 would be unfair or inaccurate. In these cases, the AWE is ' +
+      'computed as the daily earnings of similar employees in the same occupation and ' +
+      'locality for the same type of work, multiplied by the number of working days per ' +
+      'week that the injured worker customarily worked.',
+    keyRequirements: [
+      'Identify whether the employee has irregular, seasonal, or part-time employment',
+      'Gather comparable employee wage data from the employer for the same job classification',
+      'Compute AWE by multiplying the daily comparable wage by actual working days per week',
+      'Document the methodology and comparable-employee data used',
+      'Confirm calculated AWE with the employer before issuing benefits',
+    ],
+    penalties: [
+      'Incorrect AWE for irregular workers results in underpayment or overpayment liability',
+      'Using the standard 52-week calculation when LC 4657 applies is an error',
+    ],
+    relatedCitations: ['LC 4453', 'LC 4653', 'LC 4659'],
+    effectiveDate: '1989-01-01',
+    examinerRelevance:
+      'Agricultural workers, seasonal construction workers, day laborers, and part-time employees often qualify for the LC 4657 alternative calculation. Always ask about employment pattern when computing AWE.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Labor Code — Statute of Limitations (additional)
+  // -------------------------------------------------------------------------
+  {
+    citation: 'LC 5410',
+    title: 'New and Further Disability — 5-Year Petition Period',
+    fullText:
+      'Labor Code § 5410 provides that a petition to reopen a claim for new or further ' +
+      'disability arising from an industrial injury must be filed within 5 years from the ' +
+      'date of injury. "New or further disability" includes a worsening of a previously ' +
+      'rated condition, a new body part becoming symptomatic as a result of the industrial ' +
+      'injury, or the need for additional medical treatment that was not previously awarded.',
+    keyRequirements: [
+      'Track the 5-year period from date of injury for all closed claims that may have further disability',
+      'Respond to any petition to reopen with a review of all prior medical evidence',
+      'Verify whether the claimed new disability is causally related to the original industrial injury',
+      'Consult defense counsel before accepting a petition to reopen',
+      'Review prior award language to understand what conditions were previously adjudicated',
+    ],
+    penalties: [
+      'Improperly rejecting a timely petition to reopen exposes the insurer to WCAB sanctions',
+      'Missing the 5-year period permanently bars the petition — confirm the injury date',
+    ],
+    relatedCitations: ['LC 5405', 'LC 5412', 'LC 4660'],
+    effectiveDate: '1989-01-01',
+    examinerRelevance:
+      'Keep closed files accessible for 5 years post-injury. A petition to reopen within that window is legally cognizable and must be investigated on the merits before any denial.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Title 8 CCR — WCAB Procedure
+  // -------------------------------------------------------------------------
+  {
+    citation: '8 CCR 10450',
+    title: 'WCAB — Filing Requirements and Verified Pleadings',
+    fullText:
+      'Title 8 CCR § 10450 governs the requirements for filing pleadings and documents with ' +
+      'the Workers\' Compensation Appeals Board (WCAB). All pleadings that contain ' +
+      'factual allegations must be verified under penalty of perjury. Documents must be ' +
+      'filed in the district office with venue jurisdiction over the claim. Electronic ' +
+      'filing (e-filing) is required for claims administrators and attorneys.',
+    keyRequirements: [
+      'Verify all WCAB pleadings containing factual allegations before filing',
+      'File in the WCAB district office with venue jurisdiction (employee\'s county of injury or residence)',
+      'Use the DWC electronic filing system (e-filing) as required for claims administrators',
+      'Include the case number and all party names on every filed document',
+      'Retain copies of all filed documents with proof of service',
+    ],
+    penalties: [
+      'Unverified pleadings may be rejected or stricken by the WCAB',
+      'Filing in the wrong venue causes delay and may result in transfer orders',
+    ],
+    relatedCitations: ['8 CCR 10453', '8 CCR 10500', '8 CCR 10600'],
+    effectiveDate: '2020-01-01',
+    examinerRelevance:
+      'All litigation documents sent to the WCAB must be properly verified and filed in the correct office. Coordinate with defense counsel to ensure filings meet procedural requirements.',
+  },
+  {
+    citation: '8 CCR 10500',
+    title: 'WCAB — Declaration of Readiness to Proceed',
+    fullText:
+      'Title 8 CCR § 10500 governs the Declaration of Readiness to Proceed (DOR), the ' +
+      'document that requests a WCAB hearing date. A party may file a DOR when a genuine ' +
+      'dispute exists and informal resolution has been exhausted. The filing party must ' +
+      'complete the DOR form, certify the claim is ready for hearing, and indicate the type ' +
+      'of hearing requested (Mandatory Settlement Conference, Expedited Hearing, or Trial).',
+    keyRequirements: [
+      'File a DOR only when the claim is genuinely ready for hearing — not as a tactical move',
+      'Identify the specific issues to be heard on the DOR form',
+      'Serve the DOR on all parties of record on the same day as filing',
+      'Prepare a summary of evidence and witnesses for the pre-hearing exchange',
+      'Be prepared to resolve the listed issues at the hearing — the WCAB expects resolution',
+    ],
+    penalties: [
+      'Filing a DOR for issues not yet ripe can result in WCAB sanctions and attorney fee awards',
+      'Failure to appear at a scheduled hearing after a DOR is filed triggers default procedures',
+    ],
+    relatedCitations: ['8 CCR 10450', '8 CCR 10505', '8 CCR 10545'],
+    effectiveDate: '2020-01-01',
+    examinerRelevance:
+      'The DOR is the trigger for WCAB litigation. When defense counsel files a DOR on your claim, begin gathering all evidence immediately — the MSC date may arrive within 30 to 60 days.',
+  },
+  {
+    citation: '8 CCR 10545',
+    title: 'WCAB — Mandatory Settlement Conference Procedures',
+    fullText:
+      'Title 8 CCR § 10545 governs the Mandatory Settlement Conference (MSC), the primary ' +
+      'hearing at which the parties attempt to resolve a pending dispute before a WCAB Judge. ' +
+      'Both parties (or their representatives) must appear at the MSC with full settlement ' +
+      'authority. If the case does not settle, the judge sets a Trial date and the parties ' +
+      'exchange witness and evidence lists.',
+    keyRequirements: [
+      'Appear at the MSC with full settlement authority — not limited authority',
+      'Complete the pre-MSC Joint Exhibit and Witness List exchange before the hearing',
+      'Bring all medical reports, wage records, and relevant claim documents to the MSC',
+      'If settling, have a written Compromise and Release or Stipulation with Request for Award prepared',
+      'If not settling, be prepared to identify all disputed issues and proposed evidence for Trial',
+    ],
+    penalties: [
+      'Failure to appear at an MSC results in sanctions and may result in a default judgment against the absent party',
+      'Appearing without settlement authority is an MSC violation subject to sanctions',
+    ],
+    relatedCitations: ['8 CCR 10500', '8 CCR 10560', '8 CCR 10600'],
+    effectiveDate: '2020-01-01',
+    examinerRelevance:
+      'MSCs frequently resolve claims. Prepare defense counsel with a realistic settlement range before the MSC. Appearing without authority to settle wastes judicial resources and triggers sanctions.',
+  },
+  {
+    citation: '8 CCR 10600',
+    title: 'WCAB — Compromise and Release Agreement',
+    fullText:
+      'Title 8 CCR § 10600 governs the Compromise and Release (C&R) — the document by ' +
+      'which the parties fully settle a workers\' compensation claim for a lump sum payment. ' +
+      'A C&R must be approved by a WCAB Judge after confirming the worker understands the ' +
+      'terms. The C&R releases future liability for the industrial injury, including future ' +
+      'medical treatment, unless specific carve-outs are negotiated. The worker must be ' +
+      'represented by counsel or appear in person before the WCJ.',
+    keyRequirements: [
+      'Prepare a written C&R form using the DWC-approved format',
+      'Address all issues: TD, PD, medical-legal, liens, future medical treatment',
+      'Ensure all known lienholders are addressed and either paid or released in the C&R',
+      'Obtain WCAB Judge approval before issuing the settlement check',
+      'Issue the settlement check within 30 days of final WCAB approval',
+      'Retain a copy of the approved C&R in the claim file',
+    ],
+    penalties: [
+      'Paying settlement before WCAB approval is improper and may not constitute a valid release',
+      'Failure to address liens in the C&R creates double-payment exposure',
+      'Delay in post-approval payment triggers penalty exposure',
+    ],
+    relatedCitations: ['8 CCR 10545', '8 CCR 10605', 'LC 4903', 'LC 5000'],
+    effectiveDate: '2020-01-01',
+    examinerRelevance:
+      'Never issue a settlement check until the WCJ has approved the C&R and the approval is documented. Calendar the 30-day post-approval payment deadline. Ensure the C&R resolves all known liens by name.',
+  },
+
+  // -------------------------------------------------------------------------
+  // Title 8 CCR — Permanent Disability Rating Schedule
+  // -------------------------------------------------------------------------
+  {
+    citation: '8 CCR 10160',
+    title: 'Permanent Disability Rating Schedule — 2005 PDRS and AMA Guides',
+    fullText:
+      'Title 8 CCR § 10160 adopts the 2005 Schedule for Rating Permanent Disabilities (PDRS) ' +
+      'for injuries occurring on or after January 1, 2005. The PDRS translates whole person ' +
+      'impairment (WPI) ratings from AMA Guides (5th Ed.) into California permanent ' +
+      'disability percentages using occupational adjustment and age factors. The resulting ' +
+      'PD percentage determines the number of weeks of PD indemnity payable under the ' +
+      'benefit rate schedule.',
+    keyRequirements: [
+      'Use the 2005 PDRS for all injuries on or after January 1, 2005',
+      'Input the WPI percentage from the AMA Guides (5th Ed.) as the medical basis',
+      'Apply the occupational modifier using the employee\'s occupation code and group',
+      'Apply the age modifier based on the employee\'s age at time of injury',
+      'Calculate final PD percentage and convert to weeks and total PD indemnity dollar amount',
+      'Document the rating methodology in the claim file with the specific numbers used',
+    ],
+    penalties: [
+      'Incorrect PDRS application results in underpayment liability',
+      'Using the wrong schedule edition (pre-2005 vs. 2005) is a rating error',
+    ],
+    relatedCitations: ['LC 4660', 'LC 4658', 'LC 4663', '8 CCR 10161'],
+    effectiveDate: '2005-01-01',
+    examinerRelevance:
+      'Use the DWC PDRS rating instructions to convert the QME\'s WPI to a California PD percentage. The three inputs are WPI, occupation group, and age — all must be documented to support the rating.',
+  },
+
+  // -------------------------------------------------------------------------
   // Labor Code — Death Benefits
   // -------------------------------------------------------------------------
   {
