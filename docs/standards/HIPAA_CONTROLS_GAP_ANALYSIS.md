@@ -147,7 +147,7 @@ Implement policies and procedures to protect ePHI from improper alteration or de
 | Control | Status | Evidence |
 |---------|--------|---------|
 | All database access via Prisma ORM | **IMPLEMENTED** | No raw SQL queries in `server/` code; all data access uses Prisma client methods |
-| No SQL injection vectors | **IMPLEMENTED** | Verified by `tests/unit/security-audit.test.ts` (lines 380–448) — scans all route files for raw query patterns |
+| No SQL injection vectors | **IMPLEMENTED** | Verified by `tests/upl-compliance/security-audit.test.ts` (lines 380–448) — scans all route files for raw query patterns |
 | Input validation via Zod on all routes | **IMPLEMENTED** | Every route uses Zod schema validation on request bodies and params |
 | Soft deletes for audit trail preservation | **IMPLEMENTED** | `deletedAt` field on `User`, `Claim`, `Document` models; `DataRetentionService.softDeleteClaimData()` |
 | Foreign key constraints respected | **IMPLEMENTED** | Prisma schema defines all FK relationships; enforced at database level |
@@ -249,7 +249,7 @@ Performed as part of AJC-13 security audit. Date: 2026-04-22.
 
 **Result:** Zero raw SQL patterns found outside of `prisma.$queryRaw` used only in health check (`server/routes/health.ts` — `SELECT 1` literal, no user input).
 
-**Automated verification:** `tests/unit/security-audit.test.ts` (lines 380–448).
+**Automated verification:** `tests/upl-compliance/security-audit.test.ts` (lines 380–448).
 
 ### Finding 3: Hardcoded Secrets — NONE FOUND
 
