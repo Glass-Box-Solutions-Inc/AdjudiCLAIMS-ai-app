@@ -62,7 +62,36 @@ export default function DashboardPage() {
   const claims = claimsQuery.data?.data ?? [];
   const totalClaims = claimsQuery.data?.total ?? 0;
   const deadlines = deadlinesQuery.data;
-  const compliance = complianceQuery.data;
+  const complianceRaw = complianceQuery.data;
+
+  // Derive display-friendly flat values from the nested API shape
+  const compliance = complianceRaw
+    ? {
+        overallScore: Math.min(
+          100,
+          Math.round(
+            complianceRaw.deadlineAdherence.adherenceRate * 50 +
+              ((complianceRaw.uplSummary.total > 0
+                ? (complianceRaw.uplSummary.total - complianceRaw.uplSummary.blocked) /
+                  complianceRaw.uplSummary.total
+                : 1) *
+                30) +
+              Math.min(complianceRaw.activeClaimsCount * 2, 20),
+          ),
+        ),
+        trend: 0, // trend not available from API — show neutral
+        deadlineAdherence: Math.round(complianceRaw.deadlineAdherence.adherenceRate * 100),
+        trainingCompletion: 0, // not available on examiner endpoint
+        uplCompliance: Math.round(
+          complianceRaw.uplSummary.total > 0
+            ? ((complianceRaw.uplSummary.total - complianceRaw.uplSummary.blocked) /
+                complianceRaw.uplSummary.total) *
+                100
+            : 100,
+        ),
+        monthlyReviewDue: complianceRaw.deadlineAdherence.missed > 0,
+      }
+    : null;
 
   return (
     <>
