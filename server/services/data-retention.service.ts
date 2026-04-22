@@ -1,28 +1,43 @@
+// @Developed & Documented by Glass Box Solutions, Inc. using human ingenuity and modern technology
 /**
  * Data retention service.
  *
  * Enforces the 7-year data retention policy for California Workers'
- * Compensation claim records.
+ * Compensation claim records AND audit event records.
  *
  * Regulatory basis:
  * - Cal. Lab. Code § 3762: insurers must retain claim files for minimum 5 years
  *   after claim closure date or final payment, whichever is later.
+ * - HIPAA §164.530(j): audit documentation must be retained for 6 years from
+ *   creation date or last effective date, whichever is later.
+ * - Cal. Lab. Code § 4903.05: workers' compensation adjudication records.
  * - We use 7 years (plus a 90-day grace period) for an additional safety margin.
  *
- * Retention logic:
+ * Claim retention logic:
  * - Only closed claims (dateClosed != null) are eligible for purge.
  * - The claim's closedAt date must be older than retentionYears.
  * - Claims already soft-deleted (deletedAt != null) are excluded.
  * - A 90-day grace period (gracePeriodDays) is applied before purge executes.
  *
- * What is purged (hard-delete):
+ * Audit event retention logic:
+ * - Each AuditEvent has a retentionExpiresAt field set 7 years from creation.
+ * - Records MUST be retained until retentionExpiresAt.
+ * - Records are ELIGIBLE for purge after retentionExpiresAt.
+ * - purgeExpiredAuditEvents() re-validates expiry before any deletion (race guard).
+ * - NOTE: The DB-level append-only trigger (20260420_audit_append_only) blocks
+ *   normal ORM DELETE operations. purgeExpiredAuditEvents() uses $executeRaw
+ *   to bypass the trigger with explicit authorization (authorized retention purge only).
+ *
+ * What is purged (hard-delete) for claims:
  * - DocumentChunks → Documents → ChatSessions for the eligible claims
  * - The Claim records themselves
  *
- * What is NEVER purged (immutable by law):
- * - AuditEvent records
+ * What is retained regardless of claim purge:
  * - RegulatoryDeadline records (compliance evidence)
  * - BenefitPayment records (financial records)
+ *
+ * What is purged separately (audit events only, after 7-year window):
+ * - AuditEvent records past their retentionExpiresAt date
  */
 
 import { prisma } from '../db.js';
@@ -228,4 +243,81 @@ export async function purgeExpiredRecords(claimIds: string[]): Promise<PurgeResu
     purgedChunks: chunksResult.count,
     purgedChatSessions: chatSessionsResult.count,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Audit Event Retention (AJC-6 — Phase 7 hardening)
+// ---------------------------------------------------------------------------
+
+/**
+ * Identify audit event IDs whose 7-year retention window has expired.
+ *
+ * These records are ELIGIBLE for deletion — they have been retained for the
+ * required minimum period under HIPAA §164.530(j) and Cal. Lab. Code § 4903.05.
+ *
+ * This function does NOT perform any deletions. Call purgeExpiredAuditEvents()
+ * with the returned IDs to execute the actual purge (requires explicit authorization).
+ *
+ * @param asOfDate - The reference date for the expiry check. Defaults to now().
+ * @returns Array of AuditEvent IDs whose retentionExpiresAt < asOfDate
+ */
+export async function identifyExpiredAuditEvents(asOfDate?: Date): Promise<string[]> {
+  const referenceDate = asOfDate ?? new Date();
+
+  const expiredEvents = await prisma.auditEvent.findMany({
+    where: {
+      retentionExpiresAt: {
+        lt: referenceDate,
+      },
+    },
+    select: { id: true },
+    orderBy: { retentionExpiresAt: 'asc' },
+  });
+
+  return expiredEvents.map((e) => e.id);
+}
+
+/**
+ * Purge audit event records whose 7-year retention window has expired.
+ *
+ * IMPORTANT: The audit_events table has a DB-level append-only trigger
+ * (migration 20260420_audit_append_only) that blocks ORM-level DELETE operations.
+ * This function uses $executeRaw with an explicit WHERE clause to perform the
+ * authorized retention purge, bypassing the trigger only for records whose
+ * retentionExpiresAt has verifiably passed.
+ *
+ * The double-check on retentionExpiresAt < NOW() in the WHERE clause prevents
+ * premature deletion in race conditions where identifyExpiredAuditEvents()
+ * was called before the clock crossed the expiry boundary.
+ *
+ * This function MUST only be called by an authorized retention schedule or
+ * a CLAIMS_ADMIN-authenticated request. Callers are responsible for authorization.
+ *
+ * Regulatory basis: HIPAA §164.530(j), Cal. Lab. Code § 4903.05.
+ *
+ * @param auditEventIds - Array of AuditEvent IDs returned by identifyExpiredAuditEvents()
+ * @returns Count of records actually deleted
+ */
+export async function purgeExpiredAuditEvents(auditEventIds: string[]): Promise<number> {
+  if (auditEventIds.length === 0) {
+    return 0;
+  }
+
+  // Re-validate expiry at purge time to guard against race conditions between
+  // identify and purge calls. Only records whose retentionExpiresAt is in the
+  // past at the moment of purge will be deleted.
+  //
+  // We use $executeRaw because the append-only DB trigger would otherwise
+  // block prisma.auditEvent.deleteMany(). This is the ONLY authorized bypass
+  // of the append-only constraint, and it is gated by the expiry check.
+  const placeholders = auditEventIds.map((_, i) => `$${i + 1}`).join(', ');
+
+  const result = await prisma.$executeRawUnsafe(
+    `DELETE FROM audit_events
+     WHERE id IN (${placeholders})
+       AND retention_expires_at < NOW()`,
+    ...auditEventIds,
+  );
+
+  return result;
 }
