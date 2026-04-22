@@ -20,7 +20,7 @@ jobs:
             > ../Adjudica-classifier/package.json
           echo 'export class DocumentClassifier { constructor(...args) {} }' \
             > ../Adjudica-classifier/dist/index.js
-          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(content: string, options?: Record<string, unknown>): Promise<unknown>;\n}\n' \
+          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(text: string, filename?: string): Promise<{ documentType: string | null; documentSubtype: string | null; confidence: number; aiReasoning: string; documentDate: string | null; }>;\n}\n' \
             > ../Adjudica-classifier/dist/index.d.ts
 
       - name: Set up Node.js
@@ -48,7 +48,7 @@ jobs:
             > ../Adjudica-classifier/package.json
           echo 'export class DocumentClassifier { constructor(...args) {} }' \
             > ../Adjudica-classifier/dist/index.js
-          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(content: string, options?: Record<string, unknown>): Promise<unknown>;\n}\n' \
+          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(text: string, filename?: string): Promise<{ documentType: string | null; documentSubtype: string | null; confidence: number; aiReasoning: string; documentDate: string | null; }>;\n}\n' \
             > ../Adjudica-classifier/dist/index.d.ts
 
       - name: Set up Node.js
