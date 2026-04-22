@@ -1,58 +1,31 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Shield,
   TrendingUp,
+  TrendingDown,
   AlertCircle,
   Users,
   CheckCircle,
   BookOpen,
   RefreshCw,
   Clock,
+  FileBarChart,
+  Activity,
+  Lock,
 } from 'lucide-react';
 import { cn } from '~/lib/utils';
 import { PageHeader } from '~/components/layout/page-header';
-import { useComplianceMetrics } from '~/hooks/api/use-compliance';
+import {
+  useComplianceMetrics,
+  useTeamCompliance,
+  useAdminCompliance,
+  useUplMonitoring,
+  type ExaminerBreakdown,
+  type BlocksPerPeriod,
+  type ComplianceScoreBreakdown,
+} from '~/hooks/api/use-compliance';
 import { useAuth } from '~/hooks/use-auth';
-import { apiFetch } from '~/services/api';
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-interface ExaminerComplianceRecord {
-  examinerId: string;
-  examinerName: string;
-  overallScore: number;
-  deadlineAdherence: number;
-  uplCompliance: number;
-  trainingCompletion: number;
-  uplInteractions: number;
-  redZoneBlocked: number;
-}
-
-interface TeamComplianceMetrics {
-  teamScore: number;
-  trend: number;
-  examiners: ExaminerComplianceRecord[];
-  uplZoneDistribution: {
-    green: number;
-    yellow: number;
-    red: number;
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/*  Hooks                                                              */
-/* ------------------------------------------------------------------ */
-
-function useTeamCompliance() {
-  return useQuery<TeamComplianceMetrics>({
-    queryKey: ['compliance', 'team'],
-    queryFn: () => apiFetch<TeamComplianceMetrics>('/compliance/team'),
-    refetchInterval: 60_000, // Auto-refresh every 60 seconds
-  });
-}
 
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                     */
@@ -102,7 +75,15 @@ function ScoreRing({ score, size = 128 }: { score: number; size?: number }) {
   );
 }
 
-function ComplianceBar({ label, value, colorClass }: { label: string; value: number; colorClass: string }) {
+function ComplianceBar({
+  label,
+  value,
+  colorClass,
+}: {
+  label: string;
+  value: number;
+  colorClass: string;
+}) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500">
@@ -116,6 +97,36 @@ function ComplianceBar({ label, value, colorClass }: { label: string; value: num
   );
 }
 
+function LoadingState({ message }: { message: string }) {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <p className="text-sm text-slate-400">{message}</p>
+    </div>
+  );
+}
+
+function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4">
+      <AlertCircle className="w-8 h-8 text-error" />
+      <p className="text-sm text-error">{message}</p>
+      <button
+        onClick={onRetry}
+        className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
+      >
+        <RefreshCw className="w-4 h-4" />
+        Retry
+      </button>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Examiner View                                                      */
 /* ------------------------------------------------------------------ */
@@ -125,28 +136,25 @@ function ExaminerComplianceView() {
   const compliance = complianceQuery.data;
 
   if (complianceQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-sm text-slate-400">Loading compliance metrics...</p>
-      </div>
-    );
+    return <LoadingState message="Loading compliance metrics..." />;
   }
 
   if (complianceQuery.isError || !compliance) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <AlertCircle className="w-8 h-8 text-error" />
-        <p className="text-sm text-error">Failed to load compliance data.</p>
-        <button
-          onClick={() => void complianceQuery.refetch()}
-          className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Retry
-        </button>
-      </div>
+      <ErrorState
+        message="Failed to load compliance data."
+        onRetry={() => void complianceQuery.refetch()}
+      />
     );
   }
+
+  const { deadlineAdherence, uplSummary, activeClaimsCount } = compliance;
+  const adherencePct = Math.round(deadlineAdherence.adherenceRate * 100);
+  const uplTotal = uplSummary.total || 1;
+  const uplCompliancePct = Math.round(((uplTotal - uplSummary.blocked) / uplTotal) * 100);
+
+  // Derive an overall score: 50% deadline + 30% UPL + 20% activity signal
+  const overallScore = Math.round(adherencePct * 0.5 + uplCompliancePct * 0.3 + Math.min(activeClaimsCount * 2, 20));
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -155,95 +163,94 @@ function ExaminerComplianceView() {
         <div className="absolute -top-8 -right-8 w-28 h-28 bg-primary/5 rounded-full blur-2xl" />
         <h3 className="text-base font-bold text-on-surface mb-6">Your Compliance Score</h3>
         <div className="flex flex-col items-center gap-4 mb-6">
-          <ScoreRing score={compliance.overallScore} />
-          {compliance.trend !== 0 && (
-            <p
-              className={cn(
-                'text-xs font-bold flex items-center gap-1',
-                compliance.trend > 0 ? 'text-secondary' : 'text-error',
-              )}
-            >
-              <TrendingUp className="w-3 h-3" />
-              {compliance.trend > 0 ? '+' : ''}
-              {compliance.trend}% FROM LAST MONTH
-            </p>
-          )}
+          <ScoreRing score={Math.min(overallScore, 100)} />
         </div>
         <div className="space-y-4">
           <ComplianceBar
             label="Deadline Adherence"
-            value={compliance.deadlineAdherence}
+            value={adherencePct}
             colorClass="bg-secondary"
           />
           <ComplianceBar
-            label="Training Completion"
-            value={compliance.trainingCompletion}
-            colorClass="bg-tertiary-container"
-          />
-          <ComplianceBar
             label="UPL Compliance"
-            value={compliance.uplCompliance}
+            value={uplCompliancePct}
             colorClass="bg-primary"
           />
         </div>
       </div>
 
-      {/* Training status */}
+      {/* Deadline breakdown */}
       <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-2xl p-6 ambient-shadow">
-        <h3 className="text-base font-bold text-on-surface mb-6">Training Status</h3>
+        <h3 className="text-base font-bold text-on-surface mb-6">Compliance Breakdown</h3>
         <div className="grid grid-cols-2 gap-4">
+          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-5 h-5 text-secondary" />
+              <span className="text-sm font-bold text-on-surface">Deadlines</span>
+            </div>
+            <p className="text-2xl font-extrabold text-on-surface">
+              {deadlineAdherence.met}
+              <span className="text-sm font-normal text-slate-400"> / {deadlineAdherence.total}</span>
+            </p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {deadlineAdherence.met} met · {deadlineAdherence.missed} missed ·{' '}
+              {deadlineAdherence.pending} pending
+            </p>
+          </div>
+
+          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-5 h-5 text-primary" />
+              <span className="text-sm font-bold text-on-surface">AI Interactions</span>
+            </div>
+            <p className="text-2xl font-extrabold text-on-surface">
+              {uplSummary.total}
+              <span className="text-sm font-normal text-slate-400"> total</span>
+            </p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {uplSummary.green} green · {uplSummary.yellow} yellow · {uplSummary.red} red blocked
+            </p>
+          </div>
+
+          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="w-5 h-5 text-tertiary-container" />
+              <span className="text-sm font-bold text-on-surface">Active Claims</span>
+            </div>
+            <p className="text-2xl font-extrabold text-on-surface">{activeClaimsCount}</p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              Open or under investigation
+            </p>
+          </div>
+
           <div
             className={cn(
               'rounded-xl p-4 border',
-              compliance.monthlyReviewDue
+              uplSummary.blocked > 0
                 ? 'bg-error/5 border-error/20'
                 : 'bg-surface-container-low border-outline-variant/10',
             )}
           >
             <div className="flex items-center gap-2 mb-2">
-              {compliance.monthlyReviewDue ? (
+              {uplSummary.blocked > 0 ? (
                 <AlertCircle className="w-5 h-5 text-error" />
               ) : (
                 <CheckCircle className="w-5 h-5 text-secondary" />
               )}
-              <span className="text-sm font-bold text-on-surface">Monthly Review</span>
+              <span className="text-sm font-bold text-on-surface">UPL Blocks</span>
             </div>
             <p
               className={cn(
-                'text-xs',
-                compliance.monthlyReviewDue ? 'text-error' : 'text-on-surface-variant',
+                'text-2xl font-extrabold',
+                uplSummary.blocked > 0 ? 'text-error' : 'text-secondary',
               )}
             >
-              {compliance.monthlyReviewDue
-                ? 'Due — complete your monthly compliance review'
-                : 'Complete — no action needed'}
+              {uplSummary.blocked}
             </p>
-          </div>
-          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="w-5 h-5 text-primary" />
-              <span className="text-sm font-bold text-on-surface">Training Modules</span>
-            </div>
-            <p className="text-xs text-on-surface-variant">
-              {compliance.trainingCompletion}% of required modules completed
-            </p>
-          </div>
-          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-5 h-5 text-secondary" />
-              <span className="text-sm font-bold text-on-surface">UPL Compliance</span>
-            </div>
-            <p className="text-xs text-on-surface-variant">
-              {compliance.uplCompliance}% of AI interactions in compliance
-            </p>
-          </div>
-          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="w-5 h-5 text-secondary" />
-              <span className="text-sm font-bold text-on-surface">Deadline Adherence</span>
-            </div>
-            <p className="text-xs text-on-surface-variant">
-              {compliance.deadlineAdherence}% of deadlines met on time
+            <p className="text-xs text-on-surface-variant mt-1">
+              {uplSummary.blocked === 0
+                ? 'No outputs blocked — full compliance'
+                : 'Outputs blocked by UPL validator'}
             </p>
           </div>
         </div>
@@ -253,7 +260,7 @@ function ExaminerComplianceView() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Supervisor / Admin View                                            */
+/*  Supervisor Team View                                               */
 /* ------------------------------------------------------------------ */
 
 function TeamComplianceView() {
@@ -261,36 +268,25 @@ function TeamComplianceView() {
   const team = teamQuery.data;
 
   if (teamQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-sm text-slate-400">Loading team metrics...</p>
-      </div>
-    );
+    return <LoadingState message="Loading team metrics..." />;
   }
 
   if (teamQuery.isError || !team) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <AlertCircle className="w-8 h-8 text-error" />
-        <p className="text-sm text-error">Failed to load team compliance data.</p>
-        <button
-          onClick={() => void teamQuery.refetch()}
-          className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Retry
-        </button>
-      </div>
+      <ErrorState
+        message="Failed to load team compliance data."
+        onRetry={() => void teamQuery.refetch()}
+      />
     );
   }
 
-  const total =
-    team.uplZoneDistribution.green +
-    team.uplZoneDistribution.yellow +
-    team.uplZoneDistribution.red;
-  const greenPct = total > 0 ? Math.round((team.uplZoneDistribution.green / total) * 100) : 0;
-  const yellowPct = total > 0 ? Math.round((team.uplZoneDistribution.yellow / total) * 100) : 0;
-  const redPct = total > 0 ? Math.round((team.uplZoneDistribution.red / total) * 100) : 0;
+  const { teamDeadlineAdherence, teamUplCompliance, trainingCompletion, examinerBreakdown } = team;
+  const adherencePct = Math.round(teamDeadlineAdherence.adherenceRate * 100);
+  const trainingPct = Math.round(trainingCompletion.completionRate * 100);
+  const greenPct = Math.round(teamUplCompliance.greenRate * 100);
+  const yellowPct = Math.round(teamUplCompliance.yellowRate * 100);
+  const redPct = Math.round(teamUplCompliance.redRate * 100);
+  const teamScore = Math.round(adherencePct * 0.5 + (100 - Math.round(teamUplCompliance.blockRate * 100)) * 0.3 + trainingPct * 0.2);
 
   return (
     <div className="grid grid-cols-12 gap-6">
@@ -298,17 +294,19 @@ function TeamComplianceView() {
       <div className="col-span-12 lg:col-span-3 bg-surface-container-lowest rounded-2xl p-6 ambient-shadow">
         <h3 className="text-base font-bold text-on-surface mb-4">Team Score</h3>
         <div className="flex flex-col items-center gap-3">
-          <ScoreRing score={team.teamScore} size={112} />
-          <p
-            className={cn(
-              'text-xs font-bold flex items-center gap-1',
-              team.trend >= 0 ? 'text-secondary' : 'text-error',
-            )}
-          >
-            <TrendingUp className="w-3 h-3" />
-            {team.trend >= 0 ? '+' : ''}
-            {team.trend}% THIS MONTH
-          </p>
+          <ScoreRing score={Math.min(teamScore, 100)} size={112} />
+        </div>
+        <div className="mt-4 space-y-3">
+          <ComplianceBar
+            label="Deadline Adherence"
+            value={adherencePct}
+            colorClass="bg-secondary"
+          />
+          <ComplianceBar
+            label="Training Completion"
+            value={trainingPct}
+            colorClass="bg-tertiary-container"
+          />
         </div>
       </div>
 
@@ -347,39 +345,400 @@ function TeamComplianceView() {
             </div>
           </div>
         </div>
-        <p className="text-[10px] text-slate-400 mt-4">{total} total AI interactions</p>
+        <div className="mt-4 pt-4 border-t border-surface-container flex justify-between text-[10px] text-slate-400">
+          <span>Block rate: {Math.round(teamUplCompliance.blockRate * 100)}%</span>
+          <span>
+            Training: {trainingCompletion.complete}/{trainingCompletion.total} complete
+          </span>
+        </div>
       </div>
 
       {/* Examiner table */}
       <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest rounded-2xl ambient-shadow overflow-hidden">
         <div className="px-5 py-4 border-b border-surface-container flex items-center gap-2">
           <Users className="w-4 h-4 text-on-surface-variant" />
-          <h3 className="text-base font-bold text-on-surface">Examiner Scores</h3>
+          <h3 className="text-base font-bold text-on-surface">Examiner Breakdown</h3>
         </div>
-        <ul className="divide-y divide-surface-container">
-          {team.examiners.map((examiner) => {
-            const scoreColor =
-              examiner.overallScore >= 90
-                ? 'text-secondary'
-                : examiner.overallScore >= 70
-                  ? 'text-tertiary-container'
-                  : 'text-error';
-            return (
-              <li key={examiner.examinerId} className="px-5 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-on-surface">{examiner.examinerName}</p>
-                  <p className="text-[10px] text-slate-400">
-                    {examiner.uplInteractions} AI interactions ·{' '}
-                    {examiner.redZoneBlocked} RED blocked
-                  </p>
+        {examinerBreakdown.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-slate-400">
+            No examiners with assigned claims
+          </div>
+        ) : (
+          <ul className="divide-y divide-surface-container">
+            {examinerBreakdown.map((examiner: ExaminerBreakdown) => {
+              const adherence = Math.round(examiner.deadlineAdherence.adherenceRate * 100);
+              const blockPct = Math.round(examiner.uplBlockRate * 100);
+              const score = Math.max(0, 100 - blockPct * 5 - (100 - adherence));
+              const scoreColor =
+                score >= 90
+                  ? 'text-secondary'
+                  : score >= 70
+                    ? 'text-tertiary-container'
+                    : 'text-error';
+              return (
+                <li key={examiner.userId} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">{examiner.name}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {examiner.deadlineAdherence.met}/{examiner.deadlineAdherence.total} deadlines
+                      met · {blockPct}% UPL block rate
+                    </p>
+                  </div>
+                  <span className={cn('text-xl font-extrabold', scoreColor)}>{score}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Admin DOI Audit Readiness View                                     */
+/* ------------------------------------------------------------------ */
+
+function AdminComplianceView() {
+  const adminQuery = useAdminCompliance();
+  const report = adminQuery.data;
+
+  if (adminQuery.isLoading) {
+    return <LoadingState message="Loading admin compliance report..." />;
+  }
+
+  if (adminQuery.isError || !report) {
+    return (
+      <ErrorState
+        message="Failed to load admin compliance report."
+        onRetry={() => void adminQuery.refetch()}
+      />
+    );
+  }
+
+  const { doiAuditReadinessScore, complianceScoreBreakdown: bd, teamDeadlineAdherence, teamUplCompliance, trainingCompletion } = report;
+
+  const readinessColor =
+    doiAuditReadinessScore >= 90
+      ? 'text-secondary'
+      : doiAuditReadinessScore >= 70
+        ? 'text-tertiary-container'
+        : 'text-error';
+
+  const readinessBg =
+    doiAuditReadinessScore >= 90
+      ? 'bg-secondary/10 border-secondary/20'
+      : doiAuditReadinessScore >= 70
+        ? 'bg-tertiary-container/10 border-tertiary-container/20'
+        : 'bg-error/10 border-error/20';
+
+  const scoreCategories: Array<{ label: string; score: number; max: number; note: string }> = [
+    {
+      label: 'Deadline Adherence',
+      score: bd.deadlineScore,
+      max: 40,
+      note: 'Missed deadlines are the #1 DOI audit finding',
+    },
+    {
+      label: 'Investigation Completeness',
+      score: bd.investigationScore,
+      max: 30,
+      note: 'Incomplete investigations underpin bad faith claims',
+    },
+    {
+      label: 'Documentation',
+      score: bd.documentationScore,
+      max: 20,
+      note: 'Claims with at least one supporting document',
+    },
+    {
+      label: 'UPL Compliance',
+      score: bd.uplScore,
+      max: 10,
+      note: 'AI output block rate (lower is better)',
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* DOI readiness banner */}
+      <div className={cn('rounded-2xl p-6 border ambient-shadow', readinessBg)}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <FileBarChart className={cn('w-5 h-5', readinessColor)} />
+              <h3 className="text-base font-bold text-on-surface">DOI Audit Readiness Score</h3>
+            </div>
+            <p className="text-xs text-on-surface-variant max-w-lg">
+              Composite score indicating organizational readiness for a California Department of
+              Insurance market conduct examination. Scores below 70 indicate material compliance
+              gaps requiring remediation.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className={cn('text-5xl font-extrabold', readinessColor)}>
+              {doiAuditReadinessScore}
+            </p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+              OUT OF 100
+            </p>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-400 mt-3 border-t border-current/10 pt-3">
+          Metrics computed from system data. Consult qualified counsel for regulatory compliance
+          determinations.
+        </p>
+      </div>
+
+      {/* Score breakdown */}
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest rounded-2xl p-6 ambient-shadow">
+          <h3 className="text-base font-bold text-on-surface mb-4">Score Breakdown</h3>
+          <div className="space-y-5">
+            {scoreCategories.map(({ label, score, max, note }) => {
+              const pct = Math.round((score / max) * 100);
+              const barColor =
+                pct >= 80 ? 'bg-secondary' : pct >= 60 ? 'bg-tertiary-container' : 'bg-error';
+              return (
+                <div key={label} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-on-surface">{label}</span>
+                      <span className="ml-2 text-[10px] text-slate-400">{note}</span>
+                    </div>
+                    <span className="font-extrabold text-on-surface shrink-0 ml-2">
+                      {score}/{max}
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+                    <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
+                  </div>
                 </div>
-                <span className={cn('text-xl font-extrabold', scoreColor)}>
-                  {examiner.overallScore}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Org-wide summary stats */}
+        <div className="col-span-12 lg:col-span-5 grid grid-cols-2 gap-4 content-start">
+          <div className="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-secondary" />
+              <span className="text-xs font-bold text-on-surface">Deadline Adherence</span>
+            </div>
+            <p className="text-2xl font-extrabold text-on-surface">
+              {Math.round(teamDeadlineAdherence.adherenceRate * 100)}%
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {teamDeadlineAdherence.met} met · {teamDeadlineAdherence.missed} missed
+            </p>
+          </div>
+
+          <div className="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-4 h-4 text-tertiary-container" />
+              <span className="text-xs font-bold text-on-surface">Training</span>
+            </div>
+            <p className="text-2xl font-extrabold text-on-surface">
+              {Math.round(trainingCompletion.completionRate * 100)}%
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {trainingCompletion.complete}/{trainingCompletion.total} users complete
+            </p>
+          </div>
+
+          <div className="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold text-on-surface">UPL Block Rate</span>
+            </div>
+            <p
+              className={cn(
+                'text-2xl font-extrabold',
+                teamUplCompliance.blockRate < 0.05 ? 'text-secondary' : 'text-error',
+              )}
+            >
+              {Math.round(teamUplCompliance.blockRate * 100)}%
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {Math.round(teamUplCompliance.greenRate * 100)}% green zone
+            </p>
+          </div>
+
+          <div className="bg-surface-container-lowest rounded-2xl p-4 ambient-shadow">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-4 h-4 text-secondary" />
+              <span className="text-xs font-bold text-on-surface">Exam Status</span>
+            </div>
+            <p
+              className={cn(
+                'text-sm font-extrabold',
+                doiAuditReadinessScore >= 70 ? 'text-secondary' : 'text-error',
+              )}
+            >
+              {doiAuditReadinessScore >= 90
+                ? 'Audit Ready'
+                : doiAuditReadinessScore >= 70
+                  ? 'Adequate'
+                  : 'Needs Work'}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {doiAuditReadinessScore < 70 ? 'Material gaps — remediate before exam' : 'No critical gaps detected'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  UPL Monitoring Panel (Supervisor + Admin)                         */
+/* ------------------------------------------------------------------ */
+
+function UplMonitoringPanel() {
+  const uplQuery = useUplMonitoring();
+  const data = uplQuery.data;
+
+  if (uplQuery.isLoading) {
+    return <LoadingState message="Loading UPL monitoring data..." />;
+  }
+
+  if (uplQuery.isError || !data) {
+    return (
+      <ErrorState
+        message="Failed to load UPL monitoring data."
+        onRetry={() => void uplQuery.refetch()}
+      />
+    );
+  }
+
+  const { zoneDistribution, blocksPerPeriod, adversarialDetectionRate } = data;
+  const total = zoneDistribution.green + zoneDistribution.yellow + zoneDistribution.red || 1;
+  const greenPct = Math.round((zoneDistribution.green / total) * 100);
+  const yellowPct = Math.round((zoneDistribution.yellow / total) * 100);
+  const redPct = Math.round((zoneDistribution.red / total) * 100);
+
+  const adversarialPct = Math.round(adversarialDetectionRate * 100);
+  const maxBlockDay = blocksPerPeriod.reduce(
+    (max, b) => (b.count > max ? b.count : max),
+    0,
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Lock className="w-4 h-4 text-primary" />
+        <h3 className="text-base font-bold text-on-surface">UPL Monitoring Dashboard</h3>
+        <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase">
+          Supervisor+
+        </span>
+      </div>
+
+      <div className="grid grid-cols-12 gap-4">
+        {/* Zone distribution */}
+        <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-2xl p-5 ambient-shadow">
+          <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-4">
+            Zone Distribution (30 days)
+          </h4>
+          <div className="space-y-3">
+            {[
+              { label: 'GREEN — Factual', pct: greenPct, count: zoneDistribution.green, color: 'bg-secondary', textColor: 'text-secondary' },
+              { label: 'YELLOW — Statistical', pct: yellowPct, count: zoneDistribution.yellow, color: 'bg-tertiary-container', textColor: 'text-tertiary-container' },
+              { label: 'RED — Blocked', pct: redPct, count: zoneDistribution.red, color: 'bg-error', textColor: 'text-error' },
+            ].map(({ label, pct, count, color, textColor }) => (
+              <div key={label} className="space-y-1">
+                <div className="flex justify-between text-[10px] font-bold uppercase">
+                  <span className={textColor}>{label}</span>
+                  <span className="text-on-surface">
+                    {count} ({pct}%)
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+                  <div className={cn('h-full rounded-full', color)} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400 mt-4">{total} total AI queries</p>
+        </div>
+
+        {/* Adversarial detection */}
+        <div className="col-span-12 lg:col-span-3 bg-surface-container-lowest rounded-2xl p-5 ambient-shadow flex flex-col justify-between">
+          <div>
+            <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+              Adversarial Detection Rate
+            </h4>
+            <p className="text-[10px] text-slate-400 mb-4">
+              Fraction of RED-zone queries that also triggered output validation failure —
+              indicates users attempting to circumvent UPL protections.
+            </p>
+          </div>
+          <div>
+            <p
+              className={cn(
+                'text-5xl font-extrabold',
+                adversarialPct < 10 ? 'text-secondary' : adversarialPct < 30 ? 'text-tertiary-container' : 'text-error',
+              )}
+            >
+              {adversarialPct}%
+            </p>
+            <p
+              className={cn(
+                'text-xs font-bold mt-1',
+                adversarialPct < 10 ? 'text-secondary' : adversarialPct < 30 ? 'text-tertiary-container' : 'text-error',
+              )}
+            >
+              {adversarialPct < 10
+                ? 'Normal — no policy review needed'
+                : adversarialPct < 30
+                  ? 'Elevated — monitor closely'
+                  : 'High — policy review required'}
+            </p>
+          </div>
+        </div>
+
+        {/* Blocks per period chart */}
+        <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest rounded-2xl p-5 ambient-shadow">
+          <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-4">
+            Blocked Outputs by Day
+          </h4>
+          {blocksPerPeriod.length === 0 ? (
+            <div className="flex items-center justify-center h-24">
+              <div className="flex items-center gap-2 text-secondary">
+                <CheckCircle className="w-5 h-5" />
+                <p className="text-sm font-bold">No blocked outputs in this period</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-end gap-1 h-24">
+              {blocksPerPeriod.map((entry: BlocksPerPeriod) => {
+                const barHeight = maxBlockDay > 0 ? Math.round((entry.count / maxBlockDay) * 100) : 0;
+                return (
+                  <div
+                    key={entry.period}
+                    className="flex-1 flex flex-col items-center gap-1 group relative"
+                    title={`${entry.period}: ${String(entry.count)} blocks`}
+                  >
+                    <div
+                      className="w-full bg-error rounded-sm transition-all"
+                      style={{ height: `${barHeight}%` }}
+                    />
+                    <span className="text-[8px] text-slate-400 rotate-45 origin-left hidden group-hover:block absolute -bottom-4 left-0">
+                      {entry.period.slice(5)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {blocksPerPeriod.length > 0 && (
+            <p className="text-[10px] text-slate-400 mt-2">
+              {blocksPerPeriod.reduce((sum, b) => sum + b.count, 0)} total blocks over{' '}
+              {blocksPerPeriod.length} days
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -393,8 +752,10 @@ export default function CompliancePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
   const isSupervisorOrAdmin =
     user?.role === 'CLAIMS_SUPERVISOR' || user?.role === 'CLAIMS_ADMIN';
+  const isAdmin = user?.role === 'CLAIMS_ADMIN';
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -410,7 +771,7 @@ export default function CompliancePage() {
         breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Compliance' }]}
       />
 
-      <div className="flex items-center justify-end gap-3 mb-4 text-xs text-slate-400">
+      <div className="flex items-center justify-end gap-3 mb-6 text-xs text-slate-400">
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
           Auto-refreshes every 60s
@@ -425,7 +786,57 @@ export default function CompliancePage() {
         </button>
       </div>
 
-      {isSupervisorOrAdmin ? <TeamComplianceView /> : <ExaminerComplianceView />}
+      <div className="space-y-8">
+        {/* Examiner personal view — always shown */}
+        {!isSupervisorOrAdmin && <ExaminerComplianceView />}
+
+        {/* Supervisor team view — supervisors and admins */}
+        {isSupervisorOrAdmin && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-on-surface-variant" />
+              <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">
+                Team Overview
+              </h2>
+              {isAdmin && (
+                <TrendingUp className="w-3 h-3 text-on-surface-variant" />
+              )}
+            </div>
+            <TeamComplianceView />
+          </div>
+        )}
+
+        {/* Admin DOI audit readiness — admin only */}
+        {isAdmin && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <FileBarChart className="w-4 h-4 text-on-surface-variant" />
+              <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">
+                DOI Audit Readiness
+              </h2>
+            </div>
+            <AdminComplianceView />
+          </div>
+        )}
+
+        {/* UPL monitoring panel — supervisors and admins */}
+        {isSupervisorOrAdmin && (
+          <div className="space-y-2">
+            <UplMonitoringPanel />
+          </div>
+        )}
+
+        {/* Trend indicator for non-privileged users */}
+        {!isSupervisorOrAdmin && (
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <TrendingDown className="w-3 h-3" />
+            <span>
+              Supervisor and admin views include team metrics, DOI audit readiness, and UPL
+              monitoring.
+            </span>
+          </div>
+        )}
+      </div>
     </>
   );
 }
