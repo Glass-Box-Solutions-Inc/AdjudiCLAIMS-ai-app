@@ -3,11 +3,12 @@
 # AdjudiCLAIMS — GitHub Actions CI Pipeline
 #
 # Jobs:
-#   unit-tests    — Runs on every push and PR. Mirrors the Cloud Build quality gate.
-#   playwright    — Runs on push to `staging` branch only. Post-deployment gate.
+#   typecheck     — TypeScript type checking on all branches/PRs
+#   test          — Unit tests on all branches/PRs
+#   playwright    — Playwright E2E suite against staging URL on push to `staging` branch only
 #
 # Primary CI/CD: Google Cloud Build (cloudbuild.yaml) — manages Docker build + Cloud Run deploy.
-# This file adds a GitHub Actions layer for PR quality gates and the staging E2E gate.
+# This file adds a GitHub Actions layer for PR quality gates and the staging E2E post-deployment gate.
 #
 # =============================================================================
 # PRE-REQUISITES FOR THE PLAYWRIGHT JOB TO PASS
@@ -47,6 +48,7 @@ on:
     branches:
       - main
       - staging
+      - dev
       - 'feat/**'
       - 'fix/**'
       - 'chore/**'
@@ -58,42 +60,67 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Unit Tests — runs on every push and PR
-  # Mirrors the Cloud Build quality gate (Steps 4-6 of cloudbuild.yaml)
+  # TypeScript type checking — runs on every push and PR
   # ---------------------------------------------------------------------------
-  unit-tests:
-    name: Unit Tests
+  typecheck:
+    name: typecheck
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Stub @adjudica/document-classifier
+        run: |
+          mkdir -p ../Adjudica-classifier/dist
+          echo '{"name":"@adjudica/document-classifier","version":"2.0.0","main":"dist/index.js","types":"dist/index.d.ts"}' \
+            > ../Adjudica-classifier/package.json
+          echo 'export class DocumentClassifier { constructor(...args) {} }' \
+            > ../Adjudica-classifier/dist/index.js
+          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(text: string, filename?: string): Promise<{ documentType: string | null; documentSubtype: string | null; confidence: number; aiReasoning: string; documentDate: string | null; }>;\n}\n' \
+            > ../Adjudica-classifier/dist/index.d.ts
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install dependencies
-        # Mirrors Cloud Build: --legacy-peer-deps --ignore-scripts + classifier stub
+        run: npm ci
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # Unit tests — runs on every push and PR
+  # Mirrors the Cloud Build quality gate (Steps 4-6 of cloudbuild.yaml)
+  # ---------------------------------------------------------------------------
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stub @adjudica/document-classifier
         run: |
-          npm ci --legacy-peer-deps --ignore-scripts 2>&1 || true
-          rm -rf node_modules/@adjudica/document-classifier
-          mkdir -p node_modules/@adjudica/document-classifier/dist
-          cat > node_modules/@adjudica/document-classifier/package.json << 'EOF'
-          {"name":"@adjudica/document-classifier","version":"1.0.0","main":"dist/index.js","types":"dist/index.d.ts"}
-          EOF
-          cat > node_modules/@adjudica/document-classifier/dist/index.js << 'EOF'
-          module.exports = { DocumentClassifier: class { constructor() {} classify() { return { documentType: null, documentSubtype: null, confidence: 0, aiReasoning: "", documentDate: null }; } }, getExtractionFields: () => null, buildExtractionResponseSchema: () => ({}), buildExtractionPrompt: () => "" };
-          EOF
-          echo 'export declare class DocumentClassifier { constructor(...args: any[]); classify(text: string, filename?: string): Promise<any>; } export declare function getExtractionFields(subtype: string): any; export declare function buildExtractionResponseSchema(fields: any): any; export declare function buildExtractionPrompt(fields: any, type: string, subtype: string): string;' > node_modules/@adjudica/document-classifier/dist/index.d.ts
+          mkdir -p ../Adjudica-classifier/dist
+          echo '{"name":"@adjudica/document-classifier","version":"2.0.0","main":"dist/index.js","types":"dist/index.d.ts"}' \
+            > ../Adjudica-classifier/package.json
+          echo 'export class DocumentClassifier { constructor(...args) {} }' \
+            > ../Adjudica-classifier/dist/index.js
+          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(text: string, filename?: string): Promise<{ documentType: string | null; documentSubtype: string | null; confidence: number; aiReasoning: string; documentDate: string | null; }>;\n}\n' \
+            > ../Adjudica-classifier/dist/index.d.ts
 
-      - name: Generate Prisma client
-        run: npx prisma generate
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
 
-      - name: Run unit tests
-        run: npm test
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
 
   # ---------------------------------------------------------------------------
   # Playwright E2E — post-deployment gate, staging branch only
@@ -116,25 +143,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Stub @adjudica/document-classifier
+        # Mirrors the stub pattern used in typecheck and test jobs above
+        run: |
+          mkdir -p ../Adjudica-classifier/dist
+          echo '{"name":"@adjudica/document-classifier","version":"2.0.0","main":"dist/index.js","types":"dist/index.d.ts"}' \
+            > ../Adjudica-classifier/package.json
+          echo 'export class DocumentClassifier { constructor(...args) {} }' \
+            > ../Adjudica-classifier/dist/index.js
+          printf 'export declare class DocumentClassifier {\n  constructor(...args: any[]);\n  classify(text: string, filename?: string): Promise<{ documentType: string | null; documentSubtype: string | null; confidence: number; aiReasoning: string; documentDate: string | null; }>;\n}\n' \
+            > ../Adjudica-classifier/dist/index.d.ts
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install dependencies
-        # Mirrors Cloud Build: --legacy-peer-deps --ignore-scripts + classifier stub
-        run: |
-          npm ci --legacy-peer-deps --ignore-scripts 2>&1 || true
-          rm -rf node_modules/@adjudica/document-classifier
-          mkdir -p node_modules/@adjudica/document-classifier/dist
-          cat > node_modules/@adjudica/document-classifier/package.json << 'EOF'
-          {"name":"@adjudica/document-classifier","version":"1.0.0","main":"dist/index.js","types":"dist/index.d.ts"}
-          EOF
-          cat > node_modules/@adjudica/document-classifier/dist/index.js << 'EOF'
-          module.exports = { DocumentClassifier: class { constructor() {} classify() { return { documentType: null, documentSubtype: null, confidence: 0, aiReasoning: "", documentDate: null }; } }, getExtractionFields: () => null, buildExtractionResponseSchema: () => ({}), buildExtractionPrompt: () => "" };
-          EOF
-          echo 'export declare class DocumentClassifier { constructor(...args: any[]); classify(text: string, filename?: string): Promise<any>; } export declare function getExtractionFields(subtype: string): any; export declare function buildExtractionResponseSchema(fields: any): any; export declare function buildExtractionPrompt(fields: any, type: string, subtype: string): string;' > node_modules/@adjudica/document-classifier/dist/index.d.ts
+        run: npm ci
 
       - name: Generate Prisma client
         run: npx prisma generate
