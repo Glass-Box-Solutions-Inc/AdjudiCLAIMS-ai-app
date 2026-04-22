@@ -435,7 +435,7 @@ const { buildServer } = await import('../../server/index.js');
 
 async function loginAs(
   server: Awaited<ReturnType<typeof buildServer>>,
-  user: typeof MOCK_SUPERVISOR,
+  user: { email: string; [key: string]: unknown },
 ): Promise<string> {
   mockUserFindUnique.mockResolvedValueOnce(user);
   const { prisma } = await import('../../server/db.js');
