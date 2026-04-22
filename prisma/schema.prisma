@@ -1006,6 +1006,7 @@ model WorkflowProgress {
 
 /// Immutable audit trail — every significant system event is recorded here.
 /// No updatedAt — audit events are append-only and never modified.
+/// DB-level triggers in 20260420_audit_append_only migration block all UPDATE/DELETE.
 model AuditEvent {
   id        String         @id @default(cuid()) @map("id")
   claimId   String?        @map("claim_id")
@@ -1013,6 +1014,7 @@ model AuditEvent {
   eventType AuditEventType @map("event_type")
 
   /// Structured event details — shape varies by eventType.
+  /// PHI fields are stripped by sanitizeEventData() in middleware/audit.ts before storage.
   eventData Json? @map("event_data")
 
   /// UPL zone classification at time of event (for chat/output events).
@@ -1023,6 +1025,11 @@ model AuditEvent {
 
   /// Immutable — no updatedAt column.
   createdAt DateTime @default(now()) @map("created_at")
+
+  /// Retention expiry — 7 years from creation (HIPAA §164.530(j) / LC 4903.05).
+  /// Records MUST be kept until this date; they are eligible for purge afterward.
+  /// Set at creation time by logAuditEvent() in middleware/audit.ts.
+  retentionExpiresAt DateTime @map("retention_expires_at")
 
   // Relations
   claim Claim? @relation(fields: [claimId], references: [id])
@@ -1035,6 +1042,7 @@ model AuditEvent {
   @@index([claimId, eventType], map: "idx_audit_events_claim_event_type")
   @@index([userId, eventType], map: "idx_audit_events_user_event_type")
   @@index([uplZone], map: "idx_audit_events_upl_zone")
+  @@index([retentionExpiresAt], map: "idx_audit_events_retention_expires_at")
   @@map("audit_events")
 }
 

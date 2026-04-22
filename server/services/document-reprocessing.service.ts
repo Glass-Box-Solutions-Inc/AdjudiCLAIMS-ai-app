@@ -275,6 +275,8 @@ async function reprocessSingleDocument(
 
   // --- Audit event ---
   try {
+    const retentionExpiry = new Date();
+    retentionExpiry.setFullYear(retentionExpiry.getFullYear() + 7);
     await prisma.auditEvent.create({
       data: {
         userId: 'system',
@@ -292,6 +294,7 @@ async function reprocessSingleDocument(
             .filter((e) => e.documentId === documentId)
             .map((e) => `${e.step}: ${e.error}`),
         },
+        retentionExpiresAt: retentionExpiry,
       },
     });
   } catch {

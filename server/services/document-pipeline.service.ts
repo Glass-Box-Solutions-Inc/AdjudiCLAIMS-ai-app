@@ -261,6 +261,8 @@ export async function processDocumentPipeline(
     });
 
     if (doc) {
+      const retentionExpiry = new Date();
+      retentionExpiry.setFullYear(retentionExpiry.getFullYear() + 7);
       await prisma.auditEvent.create({
         data: {
           userId: 'system',
@@ -277,6 +279,7 @@ export async function processDocumentPipeline(
             graphEdgesCreated: result.graphEdgesCreated,
             errors: result.errors,
           },
+          retentionExpiresAt: retentionExpiry,
         },
       });
     }

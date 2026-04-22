@@ -1,0 +1,16 @@
+{
+  "id": "AJC-6",
+  "title": "Phase 7: Audit trail hardening — append-only enforcement, PHI exclusion, 7-year retention",
+  "description": "Three gaps remain per PLAN-ADJUDICLAIMS-FULL-BUILD.md §7.1:\n1. Append-only enforcement verification — confirm no UPDATE/DELETE paths exist on AuditEvent rows; add DB-level constraint or test coverage proving it\n2. PHI exclusion verification — confirm audit log entries never contain PHI fields (claimant name, SSN, DOB, medical content); enforce via middleware + tests\n3. 7-year retention configuration — implement data-retention.service.ts schedule or cron that marks AuditEvent rows for deletion after 7 years (LC 4903.05 / HIPAA §164.530(j))",
+  "acceptance_criteria": [
+    "No UPDATE or DELETE paths exist on AuditEvent rows — enforced at DB level or verified by tests",
+    "Audit log entries never contain PHI fields (claimant name, SSN, DOB, medical content) — enforced via middleware + tests",
+    "7-year retention schedule marks AuditEvent rows for deletion after 7 years (LC 4903.05 / HIPAA §164.530(j))",
+    "All 3,068 existing tests continue to pass",
+    "New tests added for all three gap areas"
+  ],
+  "priority": "High",
+  "labels": [],
+  "linked_issues": [],
+  "team": "AJC"
+}
