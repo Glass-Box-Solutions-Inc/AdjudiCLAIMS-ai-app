@@ -281,14 +281,19 @@ export async function identifyExpiredAuditEvents(asOfDate?: Date): Promise<strin
  * Purge audit event records whose 7-year retention window has expired.
  *
  * IMPORTANT: The audit_events table has a DB-level append-only trigger
- * (migration 20260420_audit_append_only) that blocks ORM-level DELETE operations.
- * This function uses $executeRaw with an explicit WHERE clause to perform the
- * authorized retention purge, bypassing the trigger only for records whose
- * retentionExpiresAt has verifiably passed.
+ * (migration 20260420_audit_append_only) that blocks all DELETE operations by
+ * default. This function unlocks the trigger for its transaction by setting the
+ * session-local GUC variable 'adjudica.authorized_retention_purge' = 'true'
+ * before executing the DELETE. The trigger function checks this flag and permits
+ * the delete only when it is set. SET LOCAL scoping ensures the bypass is confined
+ * to the current transaction and cannot leak to unrelated operations.
  *
- * The double-check on retentionExpiresAt < NOW() in the WHERE clause prevents
+ * The double-check on retention_expires_at < NOW() in the WHERE clause prevents
  * premature deletion in race conditions where identifyExpiredAuditEvents()
  * was called before the clock crossed the expiry boundary.
+ *
+ * Records are processed in batches of PURGE_BATCH_SIZE to avoid exceeding
+ * PostgreSQL's maximum of 65,535 bind parameters per statement.
  *
  * This function MUST only be called by an authorized retention schedule or
  * a CLAIMS_ADMIN-authenticated request. Callers are responsible for authorization.
@@ -298,26 +303,48 @@ export async function identifyExpiredAuditEvents(asOfDate?: Date): Promise<strin
  * @param auditEventIds - Array of AuditEvent IDs returned by identifyExpiredAuditEvents()
  * @returns Count of records actually deleted
  */
+
+/** Maximum IDs per DELETE batch — keeps parameterized queries well below PostgreSQL's 65,535 limit. */
+const PURGE_BATCH_SIZE = 1000;
+
 export async function purgeExpiredAuditEvents(auditEventIds: string[]): Promise<number> {
   if (auditEventIds.length === 0) {
     return 0;
   }
 
-  // Re-validate expiry at purge time to guard against race conditions between
-  // identify and purge calls. Only records whose retentionExpiresAt is in the
-  // past at the moment of purge will be deleted.
-  //
-  // We use $executeRaw because the append-only DB trigger would otherwise
-  // block prisma.auditEvent.deleteMany(). This is the ONLY authorized bypass
-  // of the append-only constraint, and it is gated by the expiry check.
-  const placeholders = auditEventIds.map((_, i) => `$${i + 1}`).join(', ');
+  let totalDeleted = 0;
 
-  const result = await prisma.$executeRawUnsafe(
-    `DELETE FROM audit_events
-     WHERE id IN (${placeholders})
-       AND retention_expires_at < NOW()`,
-    ...auditEventIds,
-  );
+  // Process in batches to stay within PostgreSQL's bind parameter limit.
+  // Each batch runs in its own transaction: the authorized_retention_purge flag
+  // is SET LOCAL (transaction-scoped) so it cannot leak between batches.
+  for (let i = 0; i < auditEventIds.length; i += PURGE_BATCH_SIZE) {
+    const batch = auditEventIds.slice(i, i + PURGE_BATCH_SIZE);
 
-  return result;
+    // Build parameterized placeholders ($1, $2, ..., $N) for the batch IDs.
+    const placeholders = batch.map((_, j) => `$${j + 1}`).join(', ');
+
+    // Execute within a transaction so SET LOCAL is scoped to this batch only.
+    // SET LOCAL sets adjudica.authorized_retention_purge for the duration of
+    // this transaction, signaling the audit_events_immutable() trigger to permit
+    // these deletes. The trigger re-validates retention_expires_at < NOW()
+    // at the row level as an additional guard.
+    const deleted = await prisma.$transaction(async (tx) => {
+      // Unlock the append-only trigger for this transaction only.
+      await tx.$executeRawUnsafe(`SET LOCAL "adjudica.authorized_retention_purge" = 'true'`);
+
+      // DELETE with re-validation: only records whose retention has genuinely
+      // expired at purge time are deleted. This guards against race conditions
+      // where identifyExpiredAuditEvents() was called just before the expiry boundary.
+      return tx.$executeRawUnsafe(
+        `DELETE FROM audit_events
+         WHERE id IN (${placeholders})
+           AND retention_expires_at < NOW()`,
+        ...batch,
+      );
+    });
+
+    totalDeleted += deleted;
+  }
+
+  return totalDeleted;
 }

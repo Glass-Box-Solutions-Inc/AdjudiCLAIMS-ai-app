@@ -126,6 +126,9 @@ describe('Audit Trail — Append-Only Enforcement', () => {
     expect(content).toContain('audit_events_no_delete');
     // Verify RAISE EXCEPTION is used (not silent DO INSTEAD NOTHING)
     expect(content).toContain('RAISE EXCEPTION');
+    // Verify the authorized retention purge bypass uses a session-scoped variable
+    // (not a broad bypass that could be exploited outside the purge transaction)
+    expect(content).toContain('adjudica.authorized_retention_purge');
   });
 
   /**

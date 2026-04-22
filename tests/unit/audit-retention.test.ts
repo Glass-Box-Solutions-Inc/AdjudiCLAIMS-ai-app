@@ -9,8 +9,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * 2. identifyExpiredAuditEvents() excludes IDs where retentionExpiresAt > now
  * 3. identifyExpiredAuditEvents() returns empty array when no expired records
  * 4. purgeExpiredAuditEvents() with empty array returns 0 and performs no query
- * 5. purgeExpiredAuditEvents() uses $executeRawUnsafe with expiry re-check
- * 6. retentionExpiresAt index is defined in the schema
+ * 5. purgeExpiredAuditEvents() uses $transaction with SET LOCAL session flag + DELETE
+ * 6. purgeExpiredAuditEvents() batches large ID lists (PURGE_BATCH_SIZE = 1000)
+ * 7. retentionExpiresAt index is defined in the schema
  *
  * Regulatory basis: HIPAA §164.530(j), Cal. Lab. Code § 4903.05.
  */
@@ -31,12 +32,35 @@ vi.mock('argon2', () => ({
 }));
 
 const mockAuditEventFindMany = vi.fn();
-const mockExecuteRawUnsafe = vi.fn();
+
+/**
+ * The transaction client mock captures $executeRawUnsafe calls made inside
+ * the $transaction callback. purgeExpiredAuditEvents() uses $transaction to
+ * SET LOCAL the authorized_retention_purge flag and then DELETE.
+ *
+ * txRawUnsafeCalls stores all calls made to tx.$executeRawUnsafe across tests.
+ */
+const txRawUnsafeCalls: Array<[string, ...unknown[]]> = [];
+const mockTxExecuteRawUnsafe = vi.fn((...args: unknown[]) => {
+  txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+  // Return 0 by default; individual tests override via mockResolvedValueOnce
+  return Promise.resolve(0);
+});
+
+const mockTransaction = vi.fn(async (callback: (tx: Record<string, unknown>) => Promise<unknown>) => {
+  // Provide a minimal transaction client that captures $executeRawUnsafe calls.
+  // The second $executeRawUnsafe call in the callback (the DELETE) is expected to
+  // return the deleted row count — we set that via mockTxExecuteRawUnsafe.
+  const txClient = {
+    $executeRawUnsafe: mockTxExecuteRawUnsafe,
+  };
+  return callback(txClient);
+});
 
 vi.mock('../../server/db.js', () => ({
   prisma: {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-    $executeRawUnsafe: (...args: unknown[]) => mockExecuteRawUnsafe(...args) as unknown,
+    $transaction: (...args: unknown[]) => mockTransaction(...args) as unknown,
     auditEvent: {
       findMany: (...args: unknown[]) => mockAuditEventFindMany(...args) as unknown,
       create: vi.fn().mockResolvedValue({ id: 'ae-new' }),
@@ -151,55 +175,105 @@ describe('identifyExpiredAuditEvents', () => {
 describe('purgeExpiredAuditEvents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    txRawUnsafeCalls.length = 0; // clear the shared call log
+    // Default: SET LOCAL returns undefined (void), DELETE returns 0
+    mockTxExecuteRawUnsafe.mockImplementation((...args: unknown[]) => {
+      txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+      // First call per batch is SET LOCAL (returns undefined/void)
+      // Second call is DELETE (returns 0 by default)
+      return Promise.resolve(0);
+    });
   });
 
-  it('returns 0 and does not call $executeRawUnsafe when given empty array', async () => {
+  it('returns 0 and does not call $transaction when given empty array', async () => {
     const result = await purgeExpiredAuditEvents([]);
     expect(result).toBe(0);
-    expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 
-  it('calls $executeRawUnsafe with the provided IDs and a NOW() re-validation check', async () => {
-    mockExecuteRawUnsafe.mockResolvedValueOnce(3);
+  it('uses $transaction with SET LOCAL session flag before DELETE', async () => {
+    // Override: first call (SET LOCAL) → undefined, second call (DELETE) → 3
+    let callCount = 0;
+    mockTxExecuteRawUnsafe.mockImplementation((...args: unknown[]) => {
+      txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+      callCount++;
+      if (callCount === 1) return Promise.resolve(undefined); // SET LOCAL
+      return Promise.resolve(3); // DELETE
+    });
 
     const ids = ['ae-1', 'ae-2', 'ae-3'];
     const result = await purgeExpiredAuditEvents(ids);
 
     expect(result).toBe(3);
-    expect(mockExecuteRawUnsafe).toHaveBeenCalledOnce();
+    expect(mockTransaction).toHaveBeenCalledOnce();
 
-    const [sqlQuery, ...sqlParams] = mockExecuteRawUnsafe.mock.calls[0] as [string, ...string[]];
+    // First tx call must be SET LOCAL for authorized_retention_purge
+    const [setLocalSql] = txRawUnsafeCalls[0] as [string];
+    expect(setLocalSql).toContain('SET LOCAL');
+    expect(setLocalSql).toContain('adjudica.authorized_retention_purge');
+    expect(setLocalSql).toContain('true');
 
-    // The SQL must include a DELETE FROM audit_events
-    expect(sqlQuery).toContain('DELETE FROM audit_events');
-    // The SQL must include a WHERE id IN clause (parameterized)
-    expect(sqlQuery).toContain('WHERE id IN');
-    // The SQL must include a re-validation of retention_expires_at < NOW()
-    expect(sqlQuery).toContain('retention_expires_at < NOW()');
-    // The IDs must be passed as parameters (not interpolated)
+    // Second tx call must be DELETE FROM audit_events
+    const [deleteSql, ...sqlParams] = txRawUnsafeCalls[1] as [string, ...string[]];
+    expect(deleteSql).toContain('DELETE FROM audit_events');
+    expect(deleteSql).toContain('WHERE id IN');
+    expect(deleteSql).toContain('retention_expires_at < NOW()');
+    // IDs must be passed as parameters (not interpolated)
     expect(sqlParams).toContain('ae-1');
     expect(sqlParams).toContain('ae-2');
     expect(sqlParams).toContain('ae-3');
   });
 
-  it('returns 0 when $executeRawUnsafe returns 0 (all IDs had future expiry)', async () => {
-    // The DB-level WHERE retention_expires_at < NOW() blocks premature deletes
-    mockExecuteRawUnsafe.mockResolvedValueOnce(0);
-
+  it('returns 0 when DELETE returns 0 (all IDs had future expiry — re-validation blocked)', async () => {
+    // Both SET LOCAL and DELETE return 0 — the DB WHERE clause filtered out non-expired rows
     const result = await purgeExpiredAuditEvents(['ae-not-expired']);
     expect(result).toBe(0);
   });
 
   it('generates correct number of SQL placeholders for the ID list', async () => {
-    mockExecuteRawUnsafe.mockResolvedValueOnce(5);
+    let callCount = 0;
+    mockTxExecuteRawUnsafe.mockImplementation((...args: unknown[]) => {
+      txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+      callCount++;
+      if (callCount === 1) return Promise.resolve(undefined);
+      return Promise.resolve(5);
+    });
 
     const ids = ['ae-1', 'ae-2', 'ae-3', 'ae-4', 'ae-5'];
     await purgeExpiredAuditEvents(ids);
 
-    const [sqlQuery] = mockExecuteRawUnsafe.mock.calls[0] as [string];
-    // Should have $1, $2, $3, $4, $5 placeholders
+    // DELETE is the second tx call (index 1)
+    const [sqlQuery] = txRawUnsafeCalls[1] as [string];
+    // Should have $1 through $5 placeholders
     expect(sqlQuery).toContain('$1');
     expect(sqlQuery).toContain('$5');
+  });
+
+  it('processes IDs in batches of 1000 and accumulates totals', async () => {
+    // Generate 2500 IDs — should result in 3 transaction calls (1000 + 1000 + 500)
+    const ids = Array.from({ length: 2500 }, (_, i) => `ae-${i}`);
+
+    let txCallCount = 0;
+    mockTransaction.mockImplementation(async (callback: (tx: Record<string, unknown>) => Promise<unknown>) => {
+      txCallCount++;
+      let innerCallCount = 0;
+      const txClient = {
+        $executeRawUnsafe: vi.fn((...args: unknown[]) => {
+          txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+          innerCallCount++;
+          if (innerCallCount === 1) return Promise.resolve(undefined); // SET LOCAL
+          // Return batch size as deleted count for each batch
+          return Promise.resolve(txCallCount === 3 ? 500 : 1000);
+        }),
+      };
+      return callback(txClient);
+    });
+
+    const result = await purgeExpiredAuditEvents(ids);
+
+    // 3 batches: 1000 + 1000 + 500 = 2500
+    expect(txCallCount).toBe(3);
+    expect(result).toBe(2500);
   });
 });
 

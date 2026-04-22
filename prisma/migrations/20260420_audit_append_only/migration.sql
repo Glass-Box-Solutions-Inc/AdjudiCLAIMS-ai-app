@@ -12,24 +12,38 @@
 -- To reverse: DROP TRIGGER audit_events_no_update ON audit_events;
 --              DROP TRIGGER audit_events_no_delete ON audit_events;
 --              DROP FUNCTION IF EXISTS audit_events_immutable();
+--
+-- Authorized retention purge:
+-- The purgeExpiredAuditEvents() function in data-retention.service.ts is the
+-- ONLY authorized path for deleting audit records. It sets the session-local
+-- GUC variable 'adjudica.authorized_retention_purge' = 'true' within a
+-- transaction before executing the DELETE. This trigger checks for that flag
+-- before raising. The SET LOCAL scoping ensures the bypass is transaction-scoped
+-- and cannot leak to unrelated operations.
 
--- Create the trigger function that raises an exception for any mutation attempt
+-- Create the trigger function that raises an exception for any unauthorized mutation.
+-- Allows deletions only when the authorized retention purge session flag is set.
 CREATE OR REPLACE FUNCTION audit_events_immutable()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
+  -- Allow authorized retention purge: purgeExpiredAuditEvents() sets this flag
+  -- within a transaction-scoped SET LOCAL before executing the DELETE.
+  IF TG_OP = 'DELETE' AND current_setting('adjudica.authorized_retention_purge', true) = 'true' THEN
+    RETURN OLD;  -- Permit this delete
+  END IF;
+
   RAISE EXCEPTION 'audit_events table is append-only: % operations are not permitted. Audit records are immutable by regulatory requirement (HIPAA §164.530(j), SOC 2 CC7.2).', TG_OP;
 END;
 $$;
 
--- Prevent UPDATE on any row in audit_events
+-- Prevent UPDATE on any row in audit_events (no bypass — updates are never permitted)
 CREATE TRIGGER audit_events_no_update
   BEFORE UPDATE ON audit_events
   FOR EACH ROW EXECUTE FUNCTION audit_events_immutable();
 
--- Prevent DELETE on any row in audit_events
--- NOTE: The application-layer purgeExpiredAuditEvents() function bypasses this
--- trigger by using a direct SQL statement via $executeRaw after 7-year expiry.
--- This trigger blocks all ORM-level deletes, which is the correct behavior.
+-- Prevent unauthorized DELETE on any row in audit_events.
+-- Authorized retention purges (after 7-year window) are permitted via the
+-- adjudica.authorized_retention_purge session variable set by purgeExpiredAuditEvents().
 CREATE TRIGGER audit_events_no_delete
   BEFORE DELETE ON audit_events
   FOR EACH ROW EXECUTE FUNCTION audit_events_immutable();

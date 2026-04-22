@@ -25,16 +25,21 @@ export interface AuditEventParams {
 // Regulatory basis: HIPAA §164.530(j), SOC 2 CC6.1 (data minimization).
 // ---------------------------------------------------------------------------
 const PHI_FIELDS = new Set([
-  // Name fields
-  'claimantname', 'firstname', 'lastname', 'fullname', 'name',
+  // Name fields — specific to person identity; 'name' alone is too broad
+  // (e.g., { name: 'document-classifier' } is non-PHI)
+  'claimantname', 'firstname', 'lastname', 'fullname',
+  'patientname', 'claimantfullname', 'insuredname',
   // SSN / Tax ID
   'ssn', 'socialsecuritynumber', 'taxid', 'ein',
   // Date of birth
   'dateofbirth', 'dob', 'birthdate', 'birthyear',
   // Contact info
   'email', 'phone', 'phonenumber', 'mobilephone', 'cellphone', 'homephone',
-  // Address
-  'address', 'streetaddress', 'homeaddress', 'mailingaddress', 'city', 'state', 'zip', 'zipcode',
+  // Address — 'state' alone is too broad (e.g., { state: 'OPEN' } is a claim status);
+  // use explicit address-context variants only
+  'address', 'streetaddress', 'homeaddress', 'mailingaddress',
+  'homestate', 'residencestate', 'mailingstate', 'statecode',
+  'city', 'zip', 'zipcode', 'postalcode',
   // Medical content
   'medicalcontent', 'diagnosis', 'icdcode', 'icd', 'cptcode',
   'wpiscore', 'wpi', 'apportionment',
