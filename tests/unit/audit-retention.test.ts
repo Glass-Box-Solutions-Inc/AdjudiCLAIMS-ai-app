@@ -41,26 +41,29 @@ const mockAuditEventFindMany = vi.fn();
  * txRawUnsafeCalls stores all calls made to tx.$executeRawUnsafe across tests.
  */
 const txRawUnsafeCalls: Array<[string, ...unknown[]]> = [];
-const mockTxExecuteRawUnsafe = vi.fn((...args: unknown[]) => {
-  txRawUnsafeCalls.push(args as [string, ...unknown[]]);
-  // Return 0 by default; individual tests override via mockResolvedValueOnce
-  return Promise.resolve(0);
-});
+// Returns number for compatibility with $executeRawUnsafe return type.
+// SET LOCAL calls return 0 (not undefined) to keep the type consistent.
+const mockTxExecuteRawUnsafe = vi.fn(
+  (...args: [string, ...unknown[]]): Promise<number> => {
+    txRawUnsafeCalls.push(args);
+    return Promise.resolve(0);
+  },
+);
 
-const mockTransaction = vi.fn(async (callback: (tx: Record<string, unknown>) => Promise<unknown>) => {
-  // Provide a minimal transaction client that captures $executeRawUnsafe calls.
-  // The second $executeRawUnsafe call in the callback (the DELETE) is expected to
-  // return the deleted row count — we set that via mockTxExecuteRawUnsafe.
-  const txClient = {
-    $executeRawUnsafe: mockTxExecuteRawUnsafe,
-  };
-  return callback(txClient);
-});
+const mockTransaction = vi.fn(
+  async (callback: (tx: Record<string, unknown>) => Promise<number>) => {
+    // Provide a minimal transaction client that captures $executeRawUnsafe calls.
+    const txClient: Record<string, unknown> = {
+      $executeRawUnsafe: mockTxExecuteRawUnsafe,
+    };
+    return callback(txClient);
+  },
+);
 
 vi.mock('../../server/db.js', () => ({
   prisma: {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-    $transaction: (...args: unknown[]) => mockTransaction(...args) as unknown,
+    $transaction: (callback: (tx: Record<string, unknown>) => Promise<number>) => mockTransaction(callback),
     auditEvent: {
       findMany: (...args: unknown[]) => mockAuditEventFindMany(...args) as unknown,
       create: vi.fn().mockResolvedValue({ id: 'ae-new' }),
@@ -124,7 +127,8 @@ describe('identifyExpiredAuditEvents', () => {
     expect(result).toContain('ae-expired-2');
 
     // Verify the query filtered by retentionExpiresAt < now
-    const [findManyCall] = mockAuditEventFindMany.mock.calls as Array<[{ where: Record<string, unknown> }]>;
+    const findManyCalls = mockAuditEventFindMany.mock.calls as Array<[{ where: Record<string, unknown> }]>;
+    const findManyCall = findManyCalls[0]!;
     const where = findManyCall[0]?.where;
     expect(where).toHaveProperty('retentionExpiresAt');
     const filter = where?.retentionExpiresAt as Record<string, unknown>;
@@ -151,8 +155,9 @@ describe('identifyExpiredAuditEvents', () => {
     expect(result).toContain('ae-future-expired');
 
     // Verify the query used our custom date
-    const [findManyCall] = mockAuditEventFindMany.mock.calls as Array<[{ where: Record<string, unknown> }]>;
-    const where = findManyCall[0]?.where;
+    const findManyCalls2 = mockAuditEventFindMany.mock.calls as Array<[{ where: Record<string, unknown> }]>;
+    const findManyCall2 = findManyCalls2[0]!;
+    const where = findManyCall2[0]?.where;
     const filter = where?.retentionExpiresAt as Record<string, unknown>;
     expect(filter.lt).toEqual(customDate);
   });
@@ -162,8 +167,9 @@ describe('identifyExpiredAuditEvents', () => {
 
     await identifyExpiredAuditEvents();
 
-    const [findManyCall] = mockAuditEventFindMany.mock.calls as Array<[{ orderBy: Record<string, unknown> }]>;
-    const orderBy = findManyCall[0]?.orderBy;
+    const findManyCalls3 = mockAuditEventFindMany.mock.calls as Array<[{ orderBy: Record<string, unknown> }]>;
+    const findManyCall3 = findManyCalls3[0]!;
+    const orderBy = findManyCall3[0]?.orderBy;
     expect(orderBy).toHaveProperty('retentionExpiresAt', 'asc');
   });
 });
@@ -192,12 +198,12 @@ describe('purgeExpiredAuditEvents', () => {
   });
 
   it('uses $transaction with SET LOCAL session flag before DELETE', async () => {
-    // Override: first call (SET LOCAL) → undefined, second call (DELETE) → 3
+    // SET LOCAL returns 0 (consistent number return), DELETE returns 3
     let callCount = 0;
-    mockTxExecuteRawUnsafe.mockImplementation((...args: unknown[]) => {
-      txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+    mockTxExecuteRawUnsafe.mockImplementation((...args: [string, ...unknown[]]): Promise<number> => {
+      txRawUnsafeCalls.push(args);
       callCount++;
-      if (callCount === 1) return Promise.resolve(undefined); // SET LOCAL
+      if (callCount === 1) return Promise.resolve(0); // SET LOCAL — returns 0
       return Promise.resolve(3); // DELETE
     });
 
@@ -232,11 +238,11 @@ describe('purgeExpiredAuditEvents', () => {
 
   it('generates correct number of SQL placeholders for the ID list', async () => {
     let callCount = 0;
-    mockTxExecuteRawUnsafe.mockImplementation((...args: unknown[]) => {
-      txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+    mockTxExecuteRawUnsafe.mockImplementation((...args: [string, ...unknown[]]): Promise<number> => {
+      txRawUnsafeCalls.push(args);
       callCount++;
-      if (callCount === 1) return Promise.resolve(undefined);
-      return Promise.resolve(5);
+      if (callCount === 1) return Promise.resolve(0); // SET LOCAL
+      return Promise.resolve(5); // DELETE
     });
 
     const ids = ['ae-1', 'ae-2', 'ae-3', 'ae-4', 'ae-5'];
@@ -254,16 +260,17 @@ describe('purgeExpiredAuditEvents', () => {
     const ids = Array.from({ length: 2500 }, (_, i) => `ae-${i}`);
 
     let txCallCount = 0;
-    mockTransaction.mockImplementation(async (callback: (tx: Record<string, unknown>) => Promise<unknown>) => {
+    mockTransaction.mockImplementation(async (callback: (tx: Record<string, unknown>) => Promise<number>) => {
       txCallCount++;
+      const currentTxCount = txCallCount;
       let innerCallCount = 0;
-      const txClient = {
-        $executeRawUnsafe: vi.fn((...args: unknown[]) => {
-          txRawUnsafeCalls.push(args as [string, ...unknown[]]);
+      const txClient: Record<string, unknown> = {
+        $executeRawUnsafe: vi.fn((...args: [string, ...unknown[]]): Promise<number> => {
+          txRawUnsafeCalls.push(args);
           innerCallCount++;
-          if (innerCallCount === 1) return Promise.resolve(undefined); // SET LOCAL
+          if (innerCallCount === 1) return Promise.resolve(0); // SET LOCAL
           // Return batch size as deleted count for each batch
-          return Promise.resolve(txCallCount === 3 ? 500 : 1000);
+          return Promise.resolve(currentTxCount === 3 ? 500 : 1000);
         }),
       };
       return callback(txClient);

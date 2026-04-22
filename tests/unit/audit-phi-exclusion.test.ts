@@ -271,7 +271,7 @@ describe('logAuditEvent — PHI exclusion integration', () => {
     await logAuditEvent({
       userId: 'user-1',
       claimId: 'claim-1',
-      eventType: 'CLAIM_VIEWED',
+      eventType: 'CLAIM_STATUS_CHANGED',
       eventData: {
         claimId: 'claim-1',
         claimantName: 'Jane Doe',      // PHI — must be stripped
