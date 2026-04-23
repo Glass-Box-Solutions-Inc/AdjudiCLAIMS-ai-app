@@ -440,6 +440,21 @@ export async function letterRoutes(server: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: 'Letter not found' });
       }
 
+      // Enforce org-scoped access on the parent claim before serving the
+      // letter. This is the download endpoint examiners hit from the UI;
+      // unlike a same-tab navigation it can be triggered cross-origin via
+      // a signed link, so we must not assume the session alone authorizes.
+      const access = await verifyClaimAccess(
+        letter.claimId,
+        user.id,
+        user.role,
+        user.organizationId,
+      );
+
+      if (!access.authorized) {
+        return reply.code(403).send({ error: 'Access denied to this letter' });
+      }
+
       const claimNumber = letter.populatedData.claimNumber || 'N-A';
 
       const html = generateLetterHtml(letter.content, {

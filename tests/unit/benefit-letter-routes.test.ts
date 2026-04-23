@@ -493,8 +493,21 @@ describe('AJC-16 — Benefit letter + LC 3761 routes', () => {
       expect(response.statusCode).toBe(404);
     });
 
+    it('returns 403 if the parent claim is in a different org', async () => {
+      mockGeneratedLetterFindUnique.mockResolvedValueOnce(MOCK_GENERATED_LETTER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM_FOREIGN_ORG);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/letters/letter-bp-1/pdf',
+        headers: { cookie },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
     it('returns 200 with HTML body and Content-Disposition: attachment', async () => {
       mockGeneratedLetterFindUnique.mockResolvedValueOnce(MOCK_GENERATED_LETTER);
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM_FOR_ACCESS);
 
       const response = await server.inject({
         method: 'GET',
@@ -522,6 +535,7 @@ describe('AJC-16 — Benefit letter + LC 3761 routes', () => {
         ...MOCK_GENERATED_LETTER,
         populatedData: { claimNumber: '../../etc/passwd' },
       });
+      mockClaimFindUnique.mockResolvedValueOnce(MOCK_CLAIM_FOR_ACCESS);
 
       const response = await server.inject({
         method: 'GET',
