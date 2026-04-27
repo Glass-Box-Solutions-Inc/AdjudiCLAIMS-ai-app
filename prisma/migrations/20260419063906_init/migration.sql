@@ -38,10 +38,10 @@ CREATE TYPE "investigation_item_type" AS ENUM ('THREE_POINT_CONTACT_WORKER', 'TH
 CREATE TYPE "payment_type" AS ENUM ('TD', 'PD', 'DEATH_BENEFIT', 'SJDB_VOUCHER');
 
 -- CreateEnum
-CREATE TYPE "audit_event_type" AS ENUM ('DOCUMENT_UPLOADED', 'DOCUMENT_CLASSIFIED', 'DOCUMENT_VIEWED', 'DOCUMENT_DELETED', 'CLAIM_CREATED', 'CLAIM_STATUS_CHANGED', 'COVERAGE_DETERMINATION', 'RESERVE_CHANGED', 'BENEFIT_CALCULATED', 'BENEFIT_PAYMENT_ISSUED', 'DEADLINE_CREATED', 'DEADLINE_MET', 'DEADLINE_MISSED', 'DEADLINE_WAIVED', 'CHAT_MESSAGE_SENT', 'CHAT_RESPONSE_GENERATED', 'UPL_ZONE_CLASSIFICATION', 'UPL_OUTPUT_BLOCKED', 'UPL_DISCLAIMER_INJECTED', 'UPL_OUTPUT_VALIDATION_FAIL', 'COUNSEL_REFERRAL_GENERATED', 'UR_DECISION', 'INVESTIGATION_ACTIVITY', 'TRAINING_MODULE_COMPLETED', 'TRAINING_ASSESSMENT_PASSED', 'TIER1_TERM_DISMISSED', 'USER_LOGIN', 'USER_LOGOUT', 'PERMISSION_DENIED', 'LETTER_GENERATED', 'COUNSEL_REFERRAL_CREATED', 'COUNSEL_REFERRAL_STATUS_CHANGED', 'COMPLIANCE_REPORT_GENERATED', 'LIEN_CREATED', 'LIEN_STATUS_CHANGED', 'LIEN_OMFS_COMPARED', 'LIEN_RESOLVED', 'REGULATORY_CHANGE_ACKNOWLEDGED', 'MONTHLY_REVIEW_COMPLETED', 'QUARTERLY_REFRESHER_COMPLETED');
+CREATE TYPE "audit_event_type" AS ENUM ('DOCUMENT_UPLOADED', 'DOCUMENT_CLASSIFIED', 'DOCUMENT_VIEWED', 'DOCUMENT_DELETED', 'CLAIM_CREATED', 'CLAIM_STATUS_CHANGED', 'COVERAGE_DETERMINATION', 'RESERVE_CHANGED', 'BENEFIT_CALCULATED', 'BENEFIT_PAYMENT_ISSUED', 'DEADLINE_CREATED', 'DEADLINE_MET', 'DEADLINE_MISSED', 'DEADLINE_WAIVED', 'CHAT_MESSAGE_SENT', 'CHAT_RESPONSE_GENERATED', 'UPL_ZONE_CLASSIFICATION', 'UPL_OUTPUT_BLOCKED', 'UPL_DISCLAIMER_INJECTED', 'UPL_OUTPUT_VALIDATION_FAIL', 'COUNSEL_REFERRAL_GENERATED', 'UR_DECISION', 'INVESTIGATION_ACTIVITY', 'TRAINING_MODULE_COMPLETED', 'TRAINING_ASSESSMENT_PASSED', 'TIER1_TERM_DISMISSED', 'USER_LOGIN', 'USER_LOGOUT', 'PERMISSION_DENIED', 'LETTER_GENERATED', 'COUNSEL_REFERRAL_CREATED', 'COUNSEL_REFERRAL_STATUS_CHANGED', 'COMPLIANCE_REPORT_GENERATED', 'LIEN_CREATED', 'LIEN_STATUS_CHANGED', 'LIEN_OMFS_COMPARED', 'LIEN_RESOLVED', 'REGULATORY_CHANGE_ACKNOWLEDGED', 'MONTHLY_REVIEW_COMPLETED', 'QUARTERLY_REFRESHER_COMPLETED', 'USER_LOGIN_FAILED', 'USER_ACCOUNT_LOCKED', 'USER_MFA_ENROLLED', 'USER_MFA_VERIFIED', 'USER_PASSWORD_CHANGED', 'USER_CREATED', 'USER_DEACTIVATED', 'USER_ROLE_CHANGED', 'SESSION_EXPIRED', 'EXPORT_DATA_REQUESTED', 'DATA_DELETION_REQUESTED', 'DATA_DELETION_COMPLETED', 'SYSTEM_CONFIG_CHANGED', 'DEPLOYMENT_COMPLETED', 'ANOMALY_DETECTED', 'BODY_PART_STATUS_CHANGED', 'MEDICAL_PAYMENT_RECORDED');
 
 -- CreateEnum
-CREATE TYPE "letter_type" AS ENUM ('TD_BENEFIT_EXPLANATION', 'TD_PAYMENT_SCHEDULE', 'WAITING_PERIOD_NOTICE', 'EMPLOYER_NOTIFICATION_LC3761', 'BENEFIT_ADJUSTMENT_NOTICE');
+CREATE TYPE "letter_type" AS ENUM ('TD_BENEFIT_EXPLANATION', 'TD_PAYMENT_SCHEDULE', 'WAITING_PERIOD_NOTICE', 'EMPLOYER_NOTIFICATION_LC3761', 'BENEFIT_ADJUSTMENT_NOTICE', 'BENEFIT_PAYMENT_LETTER', 'EMPLOYER_NOTIFICATION_BENEFIT_AWARD', 'EMPLOYER_NOTIFICATION_CLAIM_DECISION');
 
 -- CreateEnum
 CREATE TYPE "referral_status" AS ENUM ('PENDING', 'SENT', 'RESPONDED', 'CLOSED');
@@ -54,6 +54,12 @@ CREATE TYPE "lien_status" AS ENUM ('RECEIVED', 'UNDER_REVIEW', 'OMFS_COMPARED', 
 
 -- CreateEnum
 CREATE TYPE "filing_fee_status" AS ENUM ('PAID', 'NOT_PAID', 'EXEMPT', 'UNKNOWN');
+
+-- CreateEnum
+CREATE TYPE "body_part_status" AS ENUM ('PENDING', 'ADMITTED', 'DENIED', 'UNDER_INVESTIGATION');
+
+-- CreateEnum
+CREATE TYPE "medical_payment_type" AS ENUM ('DIRECT_PAYMENT', 'LIEN_PAYMENT', 'PHARMACY', 'DME', 'DIAGNOSTICS');
 
 -- CreateEnum
 CREATE TYPE "workflow_step_status" AS ENUM ('PENDING', 'COMPLETED', 'SKIPPED');
@@ -95,6 +101,19 @@ CREATE TABLE "users" (
     "organization_id" TEXT NOT NULL,
     "role" "user_role" NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "password_hash" TEXT,
+    "email_verified" BOOLEAN NOT NULL DEFAULT false,
+    "email_verification_token" TEXT,
+    "email_verification_expiry" TIMESTAMP(3),
+    "mfa_secret" TEXT,
+    "mfa_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "failed_login_attempts" INTEGER NOT NULL DEFAULT 0,
+    "locked_until" TIMESTAMP(3),
+    "last_login_at" TIMESTAMP(3),
+    "password_changed_at" TIMESTAMP(3),
+    "training_mode_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "deleted_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -126,6 +145,10 @@ CREATE TABLE "claims" (
     "is_litigated" BOOLEAN NOT NULL DEFAULT false,
     "has_applicant_attorney" BOOLEAN NOT NULL DEFAULT false,
     "is_cumulative_trauma" BOOLEAN NOT NULL DEFAULT false,
+    "is_synthetic" BOOLEAN NOT NULL DEFAULT false,
+    "synthetic_owner_id" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -149,6 +172,8 @@ CREATE TABLE "documents" (
     "contains_privileged" BOOLEAN NOT NULL DEFAULT false,
     "ocr_status" "ocr_status" NOT NULL DEFAULT 'PENDING',
     "extracted_text" TEXT,
+    "deleted_at" TIMESTAMP(3),
+    "deleted_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -382,8 +407,60 @@ CREATE TABLE "lien_line_items" (
     "omfs_rate" DECIMAL(10,2),
     "is_overcharge" BOOLEAN NOT NULL DEFAULT false,
     "overcharge_amount" DECIMAL(10,2),
+    "body_part_id" TEXT,
 
     CONSTRAINT "lien_line_items_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "claim_body_parts" (
+    "id" TEXT NOT NULL,
+    "claim_id" TEXT NOT NULL,
+    "body_part_name" TEXT NOT NULL,
+    "icd_code" TEXT,
+    "status" "body_part_status" NOT NULL DEFAULT 'PENDING',
+    "status_changed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "claim_body_parts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "coverage_determinations" (
+    "id" TEXT NOT NULL,
+    "claim_id" TEXT NOT NULL,
+    "body_part_id" TEXT NOT NULL,
+    "previous_status" "body_part_status",
+    "new_status" "body_part_status" NOT NULL,
+    "determination_date" DATE NOT NULL,
+    "determined_by_id" TEXT NOT NULL,
+    "basis" TEXT NOT NULL,
+    "counsel_referral_id" TEXT,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "coverage_determinations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "medical_payments" (
+    "id" TEXT NOT NULL,
+    "claim_id" TEXT NOT NULL,
+    "body_part_id" TEXT,
+    "lien_id" TEXT,
+    "provider_name" TEXT NOT NULL,
+    "payment_type" "medical_payment_type" NOT NULL,
+    "amount" DECIMAL(12,2) NOT NULL,
+    "payment_date" DATE NOT NULL,
+    "service_date" DATE,
+    "cpt_code" TEXT,
+    "description" TEXT NOT NULL,
+    "check_number" TEXT,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "medical_payments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -538,6 +615,12 @@ CREATE INDEX "idx_claims_org_status" ON "claims"("organization_id", "status");
 
 -- CreateIndex
 CREATE INDEX "idx_claims_org_examiner" ON "claims"("organization_id", "assigned_examiner_id");
+
+-- CreateIndex
+CREATE INDEX "idx_claims_synthetic_owner" ON "claims"("synthetic_owner_id");
+
+-- CreateIndex
+CREATE INDEX "idx_claims_is_synthetic" ON "claims"("is_synthetic");
 
 -- CreateIndex
 CREATE INDEX "idx_documents_claim_id" ON "documents"("claim_id");
@@ -720,6 +803,39 @@ CREATE INDEX "idx_lien_line_items_lien_id" ON "lien_line_items"("lien_id");
 CREATE INDEX "idx_lien_line_items_cpt_code" ON "lien_line_items"("cpt_code");
 
 -- CreateIndex
+CREATE INDEX "idx_lien_line_items_body_part_id" ON "lien_line_items"("body_part_id");
+
+-- CreateIndex
+CREATE INDEX "idx_claim_body_parts_claim_id" ON "claim_body_parts"("claim_id");
+
+-- CreateIndex
+CREATE INDEX "idx_claim_body_parts_claim_status" ON "claim_body_parts"("claim_id", "status");
+
+-- CreateIndex
+CREATE INDEX "idx_coverage_determinations_claim_id" ON "coverage_determinations"("claim_id");
+
+-- CreateIndex
+CREATE INDEX "idx_coverage_determinations_body_part_id" ON "coverage_determinations"("body_part_id");
+
+-- CreateIndex
+CREATE INDEX "idx_coverage_determinations_claim_date" ON "coverage_determinations"("claim_id", "determination_date");
+
+-- CreateIndex
+CREATE INDEX "idx_medical_payments_claim_id" ON "medical_payments"("claim_id");
+
+-- CreateIndex
+CREATE INDEX "idx_medical_payments_claim_date" ON "medical_payments"("claim_id", "payment_date");
+
+-- CreateIndex
+CREATE INDEX "idx_medical_payments_body_part_id" ON "medical_payments"("body_part_id");
+
+-- CreateIndex
+CREATE INDEX "idx_medical_payments_lien_id" ON "medical_payments"("lien_id");
+
+-- CreateIndex
+CREATE INDEX "idx_medical_payments_provider" ON "medical_payments"("provider_name");
+
+-- CreateIndex
 CREATE INDEX "idx_graph_nodes_claim_type" ON "graph_nodes"("claim_id", "node_type");
 
 -- CreateIndex
@@ -769,6 +885,9 @@ ALTER TABLE "claims" ADD CONSTRAINT "claims_organization_id_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "claims" ADD CONSTRAINT "claims_assigned_examiner_id_fkey" FOREIGN KEY ("assigned_examiner_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "claims" ADD CONSTRAINT "claims_synthetic_owner_id_fkey" FOREIGN KEY ("synthetic_owner_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "documents" ADD CONSTRAINT "documents_claim_id_fkey" FOREIGN KEY ("claim_id") REFERENCES "claims"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -844,6 +963,33 @@ ALTER TABLE "liens" ADD CONSTRAINT "liens_claim_id_fkey" FOREIGN KEY ("claim_id"
 
 -- AddForeignKey
 ALTER TABLE "lien_line_items" ADD CONSTRAINT "lien_line_items_lien_id_fkey" FOREIGN KEY ("lien_id") REFERENCES "liens"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lien_line_items" ADD CONSTRAINT "lien_line_items_body_part_id_fkey" FOREIGN KEY ("body_part_id") REFERENCES "claim_body_parts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "claim_body_parts" ADD CONSTRAINT "claim_body_parts_claim_id_fkey" FOREIGN KEY ("claim_id") REFERENCES "claims"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coverage_determinations" ADD CONSTRAINT "coverage_determinations_claim_id_fkey" FOREIGN KEY ("claim_id") REFERENCES "claims"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coverage_determinations" ADD CONSTRAINT "coverage_determinations_body_part_id_fkey" FOREIGN KEY ("body_part_id") REFERENCES "claim_body_parts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coverage_determinations" ADD CONSTRAINT "coverage_determinations_determined_by_id_fkey" FOREIGN KEY ("determined_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coverage_determinations" ADD CONSTRAINT "coverage_determinations_counsel_referral_id_fkey" FOREIGN KEY ("counsel_referral_id") REFERENCES "counsel_referrals"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medical_payments" ADD CONSTRAINT "medical_payments_claim_id_fkey" FOREIGN KEY ("claim_id") REFERENCES "claims"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medical_payments" ADD CONSTRAINT "medical_payments_body_part_id_fkey" FOREIGN KEY ("body_part_id") REFERENCES "claim_body_parts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medical_payments" ADD CONSTRAINT "medical_payments_lien_id_fkey" FOREIGN KEY ("lien_id") REFERENCES "liens"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "graph_nodes" ADD CONSTRAINT "graph_nodes_claim_id_fkey" FOREIGN KEY ("claim_id") REFERENCES "claims"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
