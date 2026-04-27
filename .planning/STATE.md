@@ -32,6 +32,16 @@
 3. **Three stale legacy DB-URL secrets in `adjudiclaims-prod`** (`adjudiclaims-db-url`, `DATABASE_URL`, `ADJUDICLAIMS_DATABASE_URL`) point at a Cloud SQL host (`35.230.2.226`) that no longer exists. Not used by Cloud Run (which is bound to `adjudiclaims-prod-database-url`). Safe to delete.
 4. **Two redundant migrations on disk** (`20260423031032_add_benefit_letter_types`, `20260423045225_training_sandbox_synthetic_claims`) — both are pure schema changes already encoded in the new `20260419063906_init` baseline. Marked applied on prod via `migrate resolve --applied`. Future fresh deploys will hit "already exists" errors. Should be removed in a follow-up PR.
 
+### Verified Complete (2026-04-27 late session, via repo audit)
+
+All AJC-1 through AJC-24 marked `Done` in Linear; no open AJC tickets. Spot-checked AJC-6 through AJC-10 in the repo for actual implementation (not just ticket status):
+
+- AJC-6 (audit trail hardening) — `server/routes/audit.ts`, `server/middleware/audit.ts`, `server/services/data-retention.service.ts`, `server/services/audit-query.service.ts`
+- AJC-7 (UPL compliance analytics) — `app/routes/_app.compliance.tsx`, `server/services/compliance-dashboard.service.ts`
+- AJC-8 (document access ↔ sessions) — `server/routes/documents.ts` uses `requireAuth()` + `request.session.user` on every protected route
+- AJC-9 (KB lookup_regulation) — `server/data/regulatory-kb.ts`, 49 entries, 1452 lines
+- AJC-10 (cross-product data boundary) — `server/services/org-boundary.service.ts`, `AccessLevel` enum + index in `prisma/schema.prisma`
+
 ### Resolved (2026-04-27 late session)
 
 - ~~Staging admin credential exposure~~ — PlanetScale role `main-2026-04-26-segzux` (id `jtq5sklvhzmu`) deleted from `adjudiclaims-staging/main`; GCP secret `adjudiclaims-db-url-admin` deleted from `adjudiclaims-staging` project (task 4)
